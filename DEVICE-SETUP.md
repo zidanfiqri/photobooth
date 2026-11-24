@@ -40,7 +40,7 @@ Nama menu bisa sedikit beda antar versi HyperOS/MIUI — pakai kolom **cari** di
 7. **Wi-Fi:** sambungkan ke jaringan yang akan dipakai di venue (atau hotspot HP) → buka speedtest, catat kecepatan **upload**: [uji].
 
 ## 2. Xiaomi Pad 5 — pasang aplikasi (H-3)
-1. Buka **URL produksi Vercel** di Chrome → muncul izin kamera → **Izinkan**.
+1. Buka **https://photobooth-wine-iota.vercel.app** (URL produksi) di Chrome → muncul izin kamera → **Izinkan**.
 2. Chrome ⋮ → **Install app / Add to Home screen** → buka dari ikon di home screen (layar penuh, tanpa address bar).
 3. Buka **Admin**: ketuk **pojok kiri atas 5×** → PIN `1234`.
 4. **Drive & QR:** tempel *Web App URL* + *Token* → **Tes koneksi** harus ✓ dan tautan folder bisa dibuka.

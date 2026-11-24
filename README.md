@@ -4,6 +4,8 @@ Photobooth swalayan berbasis web: tamu pilih bingkai → foto otomatis → hasil
 
 **Biaya software: Rp 0** — hosting statis di Vercel + backend Google Apps Script + Google Drive.
 
+🔗 **Live (produksi):** https://photobooth-wine-iota.vercel.app — auto-deploy setiap push ke `main` (Vercel project `photobooth`).
+
 | Layar awal | Hasil + QR | Halaman tamu (HP) |
 |---|---|---|
 | <img src="docs/img/attract.png" width="220"> | <img src="docs/img/result-qr.png" width="220"> | <img src="docs/img/guest-phone.png" width="160"> |
@@ -58,7 +60,9 @@ DEVICE-SETUP.md       Panduan setting perangkat & checklist hari H
 3. Deploy → dapat URL produksi, mis. `https://photobooth-xxxx.vercel.app`.
 4. Setiap `git push` ke `main` → deploy otomatis.
 
-> ⚠️ Buka tablet di **URL produksi** (bukan URL preview per-commit). URL preview bisa diproteksi login Vercel → link QR tamu tidak bisa dibuka. Kalau perlu, isi Admin › Drive & QR › *URL halaman tamu* dengan URL produksi.
+> ⚠️ Buka tablet di **URL produksi** `https://photobooth-wine-iota.vercel.app` (bukan URL preview per-commit / `*-zidanfiqris-projects.vercel.app`). URL preview bisa diproteksi login Vercel → link QR tamu tidak bisa dibuka. Kalau perlu, isi Admin › Drive & QR › *URL halaman tamu* dengan URL produksi.
+>
+> 💡 Mau domain yang lebih rapi (mis. `xxx.vercel.app` pilihan sendiri)? Ganti di Vercel › Project › Settings › Domains **sebelum acara** — link QR memakai domain tempat kiosk dibuka, jadi jangan ganti domain di tengah acara.
 >
 > ℹ️ Paket **Hobby** Vercel hanya untuk pemakaian pribadi/non-komersial. Kalau photobooth disewakan, gunakan paket berbayar atau host statis lain.
 
