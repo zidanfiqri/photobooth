@@ -8,7 +8,7 @@ let nextId = 1; const files = []; const folders = [];
 const iter = (arr) => { let i = 0; return { hasNext: () => i < arr.length, next: () => arr[i++] }; };
 class Folder {
   constructor(name, parent) { this.id = 'fold' + (nextId++); this.name = name; this.parent = parent; this.trashed = false; this.sharing = null; folders.push(this); }
-  getId() { return this.id; } getUrl() { return 'https://drive.google.com/drive/folders/' + this.id; } isTrashed() { return this.trashed; }
+  getId() { return this.id; } getName() { return this.name; } getUrl() { return 'https://drive.google.com/drive/folders/' + this.id; } isTrashed() { return this.trashed; }
   getFoldersByName(n) { return iter(folders.filter((f) => f.parent === this && f.name === n && !f.trashed)); }
   createFolder(n) { return new Folder(n, this); }
   createFile(blob) { const f = new GFile(blob, this); files.push(f); return f; }
@@ -16,12 +16,22 @@ class Folder {
 }
 class GFile {
   constructor(blob, folder) { this.id = 'file' + (nextId++) + 'abcdefghij'; this.blob = blob; this.folder = folder; this.desc = ''; this.trashed = false; this.sharing = null; }
-  getId() { return this.id; } getName() { return this.blob.name; } getMimeType() { return this.blob.type; } getSize() { return this.blob.bytes.length; }
+  getId() { return this.id; } getUrl() { return 'https://drive.google.com/file/d/' + this.id + '/view'; } getName() { return this.blob.name; } getMimeType() { return this.blob.type; } getSize() { return this.blob.bytes.length; }
   setDescription(d) { this.desc = d; } getDescription() { return this.desc; } setSharing(a, p) { this.sharing = [a, p]; } isTrashed() { return this.trashed; }
   getBlob() { return { getContentType: () => this.blob.type, getBytes: () => this.blob.bytes }; }
 }
 const myDrive = new Folder('My Drive', null);
 let cache = new Map(); const props = new Map();
+// --- mock SpreadsheetApp (database) ---
+const sheets = []; let ssCount = 0;
+class MockSheet { constructor(ss, name) { this.ss = ss; this.name = name; this.rows = []; this.frozen = 0; }
+  getName() { return this.name; } setName(n) { this.name = n; } getLastRow() { return this.rows.length; }
+  appendRow(r) { this.rows.push(r); } setFrozenRows(n) { this.frozen = n; } getRange() { return { setFontWeight() {} }; } getParent() { return this.ss; } }
+class MockSS { constructor(name) { this.id = 'ss' + (++ssCount); this.name = name; this.sheets = [new MockSheet(this, 'Sheet1')]; sheets.push(this);
+    const f = new GFile({ name, type: 'application/vnd.google-apps.spreadsheet', bytes: [] }, myDrive); f.id = this.id; files.push(f); }
+  getId() { return this.id; } getUrl() { return 'https://docs.google.com/spreadsheets/d/' + this.id; }
+  getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; } getSheets() { return this.sheets; } }
+GFile.prototype.moveTo = function (folder) { this.folder = folder; return this; };
 const sandbox = {
   console,
   DriveApp: {
@@ -43,6 +53,7 @@ const sandbox = {
   Session: { getScriptTimeZone: () => 'Asia/Jakarta' },
   ContentService: { MimeType: { JSON: 'application/json' }, createTextOutput: (s) => ({ s, setMimeType() { return this; } }) },
   Logger: { log: () => {} },
+  SpreadsheetApp: { create: (n) => new MockSS(n), openById: (id) => { const s = sheets.find((x) => x.id === id); if (!s) throw new Error('no sheet'); return s; } },
 };
 vm.createContext(sandbox);
 vm.runInContext(src + '\n;this.__api = { doPost, doGet, CONFIG };', sandbox);
@@ -59,13 +70,17 @@ let r = post({ token: T, action: 'ping', folder: 'Rina & Dimas — 20 · 07 · 2
 ok('ping creates root + event folder', r.ok && /folders\/fold/.test(r.eventUrl) && folders.filter((f) => f.name === 'Photobooth').length === 1, JSON.stringify(r));
 r = post({ token: T, action: 'ping', folder: 'Rina & Dimas — 20 · 07 · 2027' });
 ok('ping again reuses folders', folders.length === 3, 'folders=' + folders.map((f) => f.name).join(' | '));
+ok('ping creates database sheet once, inside Photobooth folder', sheets.length === 1 && /spreadsheets\/d\/ss1/.test(r.sheetUrl) && files.find((f) => f.id === 'ss1').folder.name === 'Photobooth', r.sheetUrl);
+const dbRows = () => sheets[0].getSheetByName('Foto').rows;
+ok('database has header row', JSON.stringify(dbRows()[0]) === JSON.stringify(['Waktu', 'Kode', 'Acara', 'Folder', 'Bingkai', 'Nama file', 'Link Drive', 'Ukuran (KB)']));
 r = post({ token: T, action: 'upload', id: 'ABCDE12345', folder: 'Rina & Dimas — 20 · 07 · 2027', eventTitle: 'Rina & Dimas', frame: 'Photo Strip', stamp: '20270720-101010', mime: 'image/png', data: png });
-const f1 = files[0];
-ok('upload saves file in event folder', r.ok && files.length === 1 && f1.folder.name === 'Rina & Dimas — 20 · 07 · 2027', JSON.stringify(r));
+const f1 = files.find((f) => f.getName().startsWith('ABCDE12345'));
+ok('upload saves file in event folder', r.ok && f1 && f1.folder.name === 'Rina & Dimas — 20 · 07 · 2027', JSON.stringify(r));
+ok('upload logged as database row', dbRows().length === 2 && dbRows()[1][1] === 'ABCDE12345' && dbRows()[1][2] === 'Rina & Dimas' && /file\/d\//.test(dbRows()[1][6]) && dbRows()[1][4] === 'Photo Strip', JSON.stringify(dbRows()[1]));
 ok('file name starts with ID, has stamp & frame', f1.getName() === 'ABCDE12345_20270720-101010_Photo Strip.png', f1.getName());
 ok('file shared anyone-with-link (view)', JSON.stringify(f1.sharing) === '["ANYONE_WITH_LINK","VIEW"]' && r.shared === true);
 r = post({ token: T, action: 'upload', id: 'ABCDE12345', folder: 'x', mime: 'image/png', data: png });
-ok('re-upload same ID is idempotent', r.ok && r.duplicate === true && files.length === 1 && r.fileId === f1.id);
+ok('re-upload same ID is idempotent (no extra file/row)', r.ok && r.duplicate === true && files.filter((f) => f.getName().startsWith('ABCDE12345')).length === 1 && r.fileId === f1.id && dbRows().length === 2);
 r = get({ action: 'get', s: 'abcde12345' });
 ok('guest get → ready + eventTitle', r.ok && r.status === 'ready' && r.fileId === f1.id && r.eventTitle === 'Rina & Dimas', JSON.stringify(r));
 cache = new Map(); // simulasi cache kedaluwarsa
@@ -76,7 +91,7 @@ ok('malformed ID → id_invalid', get({ s: 'ab' }).error === 'id_invalid');
 r = get({ action: 'img', s: 'ABCDE12345' });
 ok('img returns original bytes', r.ok && r.data === png && r.mime === 'image/png');
 r = post({ token: T, action: 'upload', id: 'JPG0000001', folder: 'Acara Kedua', stamp: 'bad', frame: 'a/b:c', mime: 'image/jpeg', data: png });
-const f2 = files[1];
+const f2 = files.find((f) => f.getName().startsWith('JPG0000001'));
 ok('jpeg → .jpg, bad stamp replaced, unsafe chars cleaned', /^JPG0000001_20270720-101500_a-b-c\.jpg$/.test(f2.getName()), f2.getName());
 ok('second event gets its own folder', f2.folder.name === 'Acara Kedua' && f2.folder.parent.name === 'Photobooth');
 ok('invalid upload ID rejected', post({ token: T, action: 'upload', id: '../../x', data: png }).error === 'id_invalid');

@@ -2,6 +2,7 @@
  * PHOTOBOOTH — Backend Google Apps Script (gratis)
  * ------------------------------------------------------------------
  * Tablet mengirim foto → disimpan ke Google Drive kamu (1 folder per acara)
+ * → dicatat di Google Sheet "Photobooth — Database" (1 baris per foto)
  * → file di-share "siapa saja yang punya link" → halaman tamu (QR) mengambil foto.
  *
  * PASANG (sekali saja, ±5 menit):
@@ -21,11 +22,13 @@ const CONFIG = {
   TOKEN: 'GANTI-DENGAN-TOKEN-RAHASIA',
   ROOT_FOLDER_NAME: 'Photobooth',   // folder induk di My Drive (dibuat otomatis)
   ROOT_FOLDER_ID: '',               // opsional: ID folder tertentu (dari URL folder Drive)
+  SHEET_ID: '',                     // opsional: ID Google Sheet database (kosong = dibuat otomatis di folder induk)
   PUBLIC_EVENT_FOLDER: false,       // true = folder acara bisa dibuka siapa saja yang punya link (QR galeri)
   MAX_BYTES: 25 * 1024 * 1024,      // batas ukuran 1 foto
 };
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
+const DB_HEADER = ['Waktu', 'Kode', 'Acara', 'Folder', 'Bingkai', 'Nama file', 'Link Drive', 'Ukuran (KB)'];
 const ID_RE = /^[0-9A-Z]{8,16}$/;
 const CACHE_TTL = 21600; // 6 jam (maksimum CacheService)
 
@@ -61,7 +64,7 @@ function doGet(e) {
 /* ------------------------------ aksi ------------------------------- */
 function ping_(b) {
   const root = rootFolder_();
-  const out = { ok: true, version: VERSION, rootUrl: root.getUrl() };
+  const out = { ok: true, version: VERSION, rootUrl: root.getUrl(), sheetUrl: dbSheet_().getParent().getUrl() };
   if (b.folder) {
     const f = eventFolder_(b.folder);
     out.eventUrl = f.getUrl();
@@ -94,6 +97,9 @@ function upload_(b) {
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
   catch (err) { shared = false; } // akun Workspace bisa melarang share publik
   CacheService.getScriptCache().put('f:' + id, file.getId(), CACHE_TTL);
+  try { // database: 1 baris per foto (gagal log tidak menggagalkan upload)
+    dbSheet_().appendRow([new Date(), id, String(b.eventTitle || ''), folder.getName(), String(b.frame || ''), name, file.getUrl(), Math.round(bytes.length / 1024)]);
+  } catch (err) { console.error('log database gagal', err); }
   return fileInfo_(file, { shared: shared });
 }
 
@@ -183,6 +189,23 @@ function eventFolder_(name) {
   }
 }
 
+/** Google Sheet database (sheet "Foto"). Dibuat otomatis di folder induk bila SHEET_ID kosong. */
+function dbSheet_() {
+  const props = PropertiesService.getScriptProperties();
+  let id = CONFIG.SHEET_ID || props.getProperty('sheetId');
+  let ss = null;
+  if (id) { try { ss = SpreadsheetApp.openById(id); } catch (err) { ss = null; } }
+  if (!ss) {
+    ss = SpreadsheetApp.create('Photobooth — Database');
+    DriveApp.getFileById(ss.getId()).moveTo(rootFolder_());
+    props.setProperty('sheetId', ss.getId());
+  }
+  let sh = ss.getSheetByName('Foto');
+  if (!sh) { sh = ss.getSheets()[0]; sh.setName('Foto'); }
+  if (sh.getLastRow() === 0) { sh.appendRow(DB_HEADER); sh.setFrozenRows(1); sh.getRange(1, 1, 1, DB_HEADER.length).setFontWeight('bold'); }
+  return sh;
+}
+
 function cleanId_(s) { return String(s || '').toUpperCase().replace(/[^0-9A-Z]/g, ''); }
 function safe_(s, max) {
   return String(s || '').replace(/[\\/:*?"<>|#%\u0000-\u001f]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, max || 80);
@@ -191,8 +214,8 @@ function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Opsional: jalankan sekali dari editor (pilih "setup" → Run) untuk memicu izin & membuat folder. */
+/** Opsional: jalankan sekali dari editor (pilih "setup" → Run) untuk memicu izin, membuat folder & database. */
 function setup() {
-  const r = rootFolder_();
-  Logger.log('Folder Photobooth: ' + r.getUrl());
+  Logger.log('Folder Photobooth: ' + rootFolder_().getUrl());
+  Logger.log('Database: ' + dbSheet_().getParent().getUrl());
 }
