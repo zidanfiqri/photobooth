@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f6f1e9">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="robots" content="noindex">
+<title>Photobooth</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+/* Font lokal (SIL OFL) — tetap tampil walau internet venue putus */
+@font-face{font-family:"Great Vibes";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/great-vibes-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/cormorant-garamond-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/cormorant-garamond-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/cormorant-garamond-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-style:italic;font-weight:400;font-display:swap;src:url(fonts/cormorant-garamond-latin-400-italic.woff2) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-style:italic;font-weight:500;font-display:swap;src:url(fonts/cormorant-garamond-latin-500-italic.woff2) format("woff2")}
+@font-face{font-family:"Jost";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/jost-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Jost";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/jost-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Jost";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/jost-latin-600-normal.woff2) format("woff2")}
+:root{
+  --bg:#f6f1e9; --paper:#fffdf8; --ink:#2f2924; --ink-2:#5a5047; --muted:#8b8075; --line:#e6ddd0;
+  --accent:#b08d57; --accent-ink:#fff; --ok:#4f8a5b; --warn:#c08a2e; --bad:#b4503f;
+  --radius:22px; --shadow:0 22px 60px -24px rgba(70,45,20,.38),0 2px 10px rgba(70,45,20,.06);
+  --serif:"Cormorant Garamond","Noto Serif",Georgia,serif;
+  --script:"Great Vibes","Cormorant Garamond",cursive;
+  --sans:"Jost",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
+body{background:radial-gradient(1200px 900px at 50% -15%,#fffaf2 0%,var(--bg) 62%) fixed,var(--bg);overflow:hidden;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation}
+body.guest{overflow:auto;user-select:auto;-webkit-user-select:auto}
+button{font:inherit;color:inherit;cursor:pointer}
+[hidden]{display:none!important}
+
+/* ---------- screens ---------- */
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:max(26px,env(safe-area-inset-top)) 28px max(26px,env(safe-area-inset-bottom));gap:22px}
+.screen.active{display:flex;animation:fade .45s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.title{font-family:var(--serif);font-weight:500;font-size:clamp(28px,4.6vmin,46px);margin:0;letter-spacing:.01em;text-align:center}
+.eyebrow{font-family:var(--serif);font-weight:600;letter-spacing:.42em;text-transform:uppercase;color:var(--accent);
+  font-size:clamp(13px,2.1vmin,20px);text-indent:.42em}
+.names{font-family:var(--script);font-weight:400;font-size:clamp(64px,13vmin,150px);line-height:1.05;margin:.12em 0 .05em;
+  color:var(--ink);text-align:center}
+.names.small{font-size:clamp(44px,12vw,72px)}
+.date{font-family:var(--serif);letter-spacing:.32em;font-size:clamp(16px,2.6vmin,26px);color:var(--ink-2);text-indent:.32em}
+.ornament{display:flex;align-items:center;gap:12px;color:var(--accent);margin:6px 0 10px}
+.ornament span{width:clamp(60px,14vmin,150px);height:1px;background:currentColor;opacity:.8}
+.ornament i{width:9px;height:9px;transform:rotate(45deg);background:currentColor;display:block}
+
+/* ---------- buttons ---------- */
+.btn{border:0;border-radius:999px;padding:16px 30px;font-size:clamp(16px,2.4vmin,22px);font-weight:500;letter-spacing:.02em;
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;transition:transform .12s ease,box-shadow .2s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);box-shadow:0 12px 30px -12px var(--accent)}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line);background:rgba(255,255,255,.55)}
+.btn.xl{padding:22px 46px;font-size:clamp(19px,3vmin,28px)}
+.btn.sm{padding:9px 16px;font-size:14px}
+.btn.danger{background:var(--bad);color:#fff}
+.btn:disabled{opacity:.45;pointer-events:none}
+.row-actions{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+
+/* ---------- attract ---------- */
+#scr-attract{justify-content:space-evenly;cursor:pointer}
+.attract-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 10px}
+.cta{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:22px}
+.cta-btn{position:relative;width:clamp(150px,25vmin,240px);aspect-ratio:1;border-radius:50%;background:var(--accent);color:#fff;
+  display:grid;place-items:center;box-shadow:0 24px 60px -20px var(--accent)}
+.cta-btn svg{width:42%;height:42%}
+.cta-btn::before,.cta-btn::after{content:"";position:absolute;inset:-14px;border-radius:50%;border:1.5px solid var(--accent);opacity:0;animation:ring 2.8s ease-out infinite}
+.cta-btn::after{animation-delay:1.4s}
+@keyframes ring{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.35);opacity:0}}
+.cta-label{font-family:var(--serif);font-size:clamp(22px,3.6vmin,36px);font-style:italic;color:var(--ink-2)}
+.recent{display:flex;gap:14px;justify-content:center;height:clamp(90px,15vmin,150px);opacity:.92}
+.recent img{height:100%;border-radius:6px;background:#fff;padding:5px;box-shadow:var(--shadow);transform:rotate(var(--r,0deg))}
+.gallery-qr{position:fixed;right:22px;bottom:22px;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.8);
+  padding:10px 14px 10px 10px;border-radius:16px;box-shadow:var(--shadow);font-size:13px;color:var(--ink-2);max-width:240px}
+.gallery-qr .qr{width:84px;height:84px;flex:none}
+
+/* ---------- status bar (operator) ---------- */
+#hotspot{position:fixed;left:0;top:0;width:96px;height:96px;z-index:40}
+#statusbar{position:fixed;right:14px;top:max(12px,env(safe-area-inset-top));display:flex;gap:10px;align-items:center;z-index:30;
+  font-size:12px;color:var(--muted);opacity:.75;pointer-events:none}
+.dot{width:9px;height:9px;border-radius:50%;background:#cfc6ba;display:inline-block}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+body.guest #statusbar,body.guest #hotspot{display:none}
+
+/* ---------- frames ---------- */
+.topbar{width:min(1100px,100%);display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.topbar .title{grid-column:2}
+.back{justify-self:start;background:none;border:0;font-size:clamp(17px,2.4vmin,22px);color:var(--ink-2);padding:10px 6px}
+#scr-frames{justify-content:flex-start;overflow:auto}
+.frame-grid{width:min(1100px,100%);display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(200px,28vmin,300px),1fr));gap:26px;
+  padding:8px 4px 30px;align-items:end}
+.frame-card{border:0;background:var(--paper);border-radius:var(--radius);padding:18px 18px 16px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;align-items:center;gap:14px;transition:transform .15s}
+.frame-card:active{transform:scale(.97)}
+.frame-card .thumb{height:clamp(230px,34vmin,380px);width:100%;display:flex;align-items:center;justify-content:center;min-height:0}
+.frame-card img{max-height:100%;max-width:100%;height:auto;width:auto;object-fit:contain;border-radius:4px;box-shadow:0 6px 18px -8px rgba(0,0,0,.35)}
+.frame-card b{font-family:var(--serif);font-size:clamp(20px,2.8vmin,26px);font-weight:600}
+.frame-card span{color:var(--muted);font-size:14px;letter-spacing:.04em}
+
+/* ---------- capture ---------- */
+#scr-capture{gap:18px}
+.look-up{font-family:var(--serif);font-style:italic;font-size:clamp(18px,2.8vmin,26px);color:var(--accent);display:flex;align-items:center;gap:10px}
+.look-up svg{width:22px;height:22px;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+.cap-step{font-family:var(--serif);font-size:clamp(22px,3.4vmin,32px);color:var(--ink-2)}
+.stage{position:relative;border-radius:18px;overflow:hidden;background:#1d1915;box-shadow:var(--shadow);border:6px solid #fff}
+.stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.mirror video.cam{transform:scaleX(-1) scale(var(--zoom,1))}
+video.cam{transform:scale(var(--zoom,1))}
+.countdown{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--sans);font-weight:400;color:#fff;
+  font-size:min(40vmin,320px);font-variant-numeric:lining-nums tabular-nums;text-shadow:0 8px 40px rgba(0,0,0,.5);pointer-events:none}
+.countdown.pop{animation:pop .95s ease-out both}
+@keyframes pop{0%{transform:scale(1.45);opacity:0}20%{opacity:1}75%{opacity:.9}100%{transform:scale(.9);opacity:.35}}
+.cam-msg{position:absolute;inset:0;display:grid;place-items:center;color:#fff;text-align:center;padding:30px;font-size:18px;background:rgba(0,0,0,.55)}
+.shots{display:flex;gap:12px;min-height:84px;align-items:center}
+.shots canvas,.shots .ph{height:84px;border-radius:8px;border:3px solid #fff;box-shadow:0 6px 16px -8px rgba(0,0,0,.4);background:#e9dfd0}
+.shots .ph{aspect-ratio:3/4;display:grid;place-items:center;color:var(--muted);font-family:var(--serif);font-size:22px}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:60}
+#flash.on{opacity:1;transition:opacity .08s}
+#flash.blink{animation:blink .45s ease-out both}
+@keyframes blink{0%{opacity:.95}100%{opacity:0}}
+
+/* ---------- review & result ---------- */
+.review-wrap{display:grid;place-items:center;max-height:70vh}
+.review-wrap img,.result-photo img{max-width:min(86vw,900px);max-height:68vh;border-radius:6px;box-shadow:var(--shadow);background:#fff}
+.result{display:flex;gap:42px;align-items:center;justify-content:center;width:min(1200px,100%)}
+.result-photo img{max-height:62vh;max-width:44vw}
+.result-side{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+.qr-card{background:#fff;padding:18px;border-radius:20px;box-shadow:var(--shadow)}
+.qr{width:clamp(200px,30vmin,300px);aspect-ratio:1}
+.qr svg{width:100%;height:100%;display:block}
+.code{font-size:15px;color:var(--muted);letter-spacing:.08em}
+.code b{color:var(--ink);letter-spacing:.14em}
+.up-status{font-size:15px;color:var(--ink-2);max-width:380px;min-height:22px}
+.up-status.ok{color:var(--ok)}.up-status.warn{color:var(--warn)}.up-status.bad{color:var(--bad)}
+.auto-reset{font-size:13px;color:var(--muted)}
+@media (orientation:portrait){
+  .result{flex-direction:column;gap:22px}
+  .result-photo img{max-height:40vh;max-width:80vw}
+}
+
+/* ---------- guest page ---------- */
+body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-content:flex-start;padding-top:36px}
+.guest{width:min(560px,100%);display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px}
+.guest-photo{width:100%;min-height:260px;display:grid;place-items:center}
+.guest-photo img{max-width:100%;max-height:72vh;border-radius:6px;box-shadow:var(--shadow);background:#fff;-webkit-touch-callout:default;user-select:auto}
+.g-msg{color:var(--ink-2);margin:4px 0}
+.g-actions{display:flex;flex-direction:column;gap:12px;width:min(360px,100%)}
+.g-actions .btn{width:100%}
+.link{color:var(--ink-2);font-size:15px}
+.g-hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+.guest footer{font-size:13px;color:var(--muted);margin:10px 0 30px}
+.loader{width:46px;height:46px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- modal / pin ---------- */
+.modal{position:fixed;inset:0;background:rgba(30,22,15,.45);backdrop-filter:blur(6px);display:grid;place-items:center;z-index:80;padding:20px}
+.pin-box{background:var(--paper);border-radius:26px;padding:26px;box-shadow:var(--shadow);width:min(360px,100%);text-align:center}
+.pin-box h3{font-family:var(--serif);font-size:26px;margin:0 0 14px;font-weight:600}
+.pin-dots{display:flex;gap:14px;justify-content:center;margin-bottom:18px;min-height:16px}
+.pin-dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent)}
+.pin-dots i.on{background:var(--accent)}
+.pin-box.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.keypad button{height:66px;border-radius:18px;border:1px solid var(--line);background:#fff;font-size:26px;font-family:var(--serif)}
+.keypad button:active{background:var(--line)}
+.sheet{background:var(--paper);border-radius:24px;padding:24px;box-shadow:var(--shadow);width:min(560px,100%);max-height:92vh;overflow:auto;position:relative}
+.sheet-close{position:absolute;right:12px;top:10px;border:0;background:none;font-size:22px;color:var(--muted)}
+
+/* ---------- admin ---------- */
+.admin{position:fixed;inset:0;z-index:70;background:var(--bg);display:flex;user-select:auto;-webkit-user-select:auto}
+.admin-nav{width:230px;flex:none;background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:auto}
+.admin-brand{font-family:var(--serif);font-size:24px;font-weight:600;padding:4px 12px 14px}
+.admin-brand small{display:block;font-family:var(--sans);font-size:12px;color:var(--muted);font-weight:400}
+.admin-nav button{border:0;background:none;text-align:left;padding:12px 14px;border-radius:12px;font-size:16px;color:var(--ink-2);white-space:nowrap}
+.admin-nav button.active{background:var(--bg);color:var(--ink);font-weight:600}
+.admin-nav .close{margin-top:auto;color:var(--bad)}
+.admin-main{flex:1;overflow:auto;padding:26px 30px 60px}
+.pane{display:none;max-width:860px}
+.pane.active{display:block}
+.pane h2{font-family:var(--serif);font-size:32px;font-weight:600;margin:0 0 6px}
+.pane .lead{color:var(--muted);margin:0 0 20px;font-size:15px;line-height:1.5}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px 20px;margin-bottom:16px}
+.card h3{margin:0 0 12px;font-size:16px;font-weight:600}
+.field{display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:center;padding:8px 0}
+.field>span{font-size:15px;color:var(--ink-2)}
+.field small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.field input[type=text],.field input[type=url],.field input[type=password],.field input[type=number],.field select{
+  width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;font-size:15px;color:var(--ink)}
+.field input[type=color]{width:64px;height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:3px}
+.field input[type=range]{width:100%;accent-color:var(--accent)}
+.admin input[type=checkbox],.admin input[type=file]{accent-color:var(--accent)}
+.stat b,.code b{font-variant-numeric:lining-nums}
+.switch{position:relative;width:52px;height:30px;display:inline-block}
+.switch input{opacity:0;width:0;height:0}
+.switch i{position:absolute;inset:0;background:#d8cfc3;border-radius:999px;transition:.2s}
+.switch i::after{content:"";position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch input:checked+i{background:var(--accent)}
+.switch input:checked+i::after{transform:translateX(22px)}
+.inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted);font-size:13.5px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;word-break:break-all}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.stat{background:var(--bg);border-radius:14px;padding:12px 14px}
+.stat b{display:block;font-size:26px;font-family:var(--serif)}
+.stat span{font-size:13px;color:var(--muted)}
+.cam-test{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cam-test .stage{border-width:3px;aspect-ratio:3/4;width:100%}
+.cam-test img{width:100%;border-radius:10px;background:#eee;min-height:120px;object-fit:contain}
+.frame-list{display:grid;gap:10px}
+.frame-row{display:grid;grid-template-columns:70px 1fr auto auto;gap:14px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.frame-row img{width:70px;height:90px;object-fit:contain}
+.frame-row b{font-weight:600}
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.gal button{border:0;background:#fff;border-radius:12px;padding:6px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.gal img{width:100%;aspect-ratio:2/3;object-fit:contain;display:block}
+.gal .badge{position:absolute;top:8px;right:8px;font-size:11px;padding:2px 7px;border-radius:999px;color:#fff;background:var(--muted)}
+.badge.done{background:var(--ok)}.badge.error{background:var(--bad)}.badge.pending,.badge.uploading{background:var(--warn)}
+.gal .t{font-size:11px;color:var(--muted);margin-top:4px}
+.help{font-size:14px;line-height:1.6;color:var(--ink-2)}
+.help code{background:var(--bg);padding:1px 6px;border-radius:6px}
+@media (max-width:900px){
+  .admin{flex-direction:column}
+  .admin-nav{width:auto;flex-direction:row;border-right:0;border-bottom:1px solid var(--line);padding:10px;overflow-x:auto}
+  .admin-brand{display:none}
+  .admin-nav .close{margin:0 0 0 auto}
+  .admin-main{padding:18px 16px 60px}
+  .field{grid-template-columns:1fr;gap:6px}
+}
+
+/* ---------- toast ---------- */
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(30px);background:#2f2924;color:#fff;padding:12px 20px;border-radius:999px;
+  font-size:15px;opacity:0;transition:.25s;z-index:99;pointer-events:none;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%)}
+
+/* ---------- boot error (app.js gagal dimuat) ---------- */
+.boot-error{position:fixed;inset:0;z-index:95;display:grid;place-items:center;background:rgba(246,241,233,.97);padding:24px}
+.boot-card{max-width:600px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:26px 28px;box-shadow:var(--shadow);font-size:16px;line-height:1.6;color:var(--ink-2)}
+.boot-card h2{font-family:var(--serif);font-size:30px;font-weight:600;margin:0 0 8px;color:var(--bad)}
+.boot-card code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:14px}
+.boot-card ul{padding-left:20px;margin:12px 0 0}
+#err-log{white-space:pre-wrap;max-height:220px;overflow:auto;background:var(--bg);border-radius:12px;padding:10px 12px;margin:10px 0 0}
+
+/* ---------- print ---------- */
+#print-area{display:none}
+@media print{
+  html,body{margin:0!important;padding:0!important;background:#fff!important;height:auto!important;overflow:visible!important}
+  body>*:not(#print-area){display:none!important}
+  #print-area{display:block!important}
+  #print-img{display:block;object-fit:contain}
+}
+</style>
+<style id="page-style"></style>
+</head>
+<body>
+
+<div id="hotspot" aria-hidden="true"></div>
+<div id="statusbar" aria-hidden="true">
+  <span id="st-queue"></span><i class="dot" id="st-cloud" title="Drive"></i><i class="dot" id="st-cam" title="Kamera"></i>
+</div>
+
+<!-- 1. Layar awal -->
+<section id="scr-attract" class="screen active">
+  <div class="attract-card">
+    <div class="eyebrow" id="a-sub">The Wedding of</div>
+    <h1 class="names" id="a-title">Nama &amp; Nama</h1>
+    <div class="ornament"><span></span><i></i><span></span></div>
+    <div class="date" id="a-date">DD · MM · YYYY</div>
+  </div>
+  <div class="cta">
+    <div class="cta-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.7l1.3-2h7l1.3 2h1.7A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="4"/></svg>
+    </div>
+    <div class="cta-label" id="a-cta">Sentuh untuk mulai</div>
+  </div>
+  <div class="recent" id="recent"></div>
+  <div class="gallery-qr" id="gallery-qr" hidden><div class="qr" id="gallery-qr-code"></div><span>Scan untuk lihat semua foto acara</span></div>
+</section>
+
+<!-- 2. Pilih bingkai -->
+<section id="scr-frames" class="screen">
+  <div class="topbar"><button class="back" data-action="home">‹ Kembali</button><h2 class="title">Pilih bingkai</h2></div>
+  <div class="frame-grid" id="frame-grid"></div>
+</section>
+
+<!-- 3. Foto -->
+<section id="scr-capture" class="screen">
+  <div class="look-up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg><span id="look-up-text">Lihat ke kamera</span></div>
+  <div class="cap-step" id="cap-step"></div>
+  <div class="stage" id="stage">
+    <video class="cam" id="cam-main" playsinline muted autoplay></video>
+    <div class="countdown" id="countdown"></div>
+    <div class="cam-msg" id="cam-msg" hidden></div>
+  </div>
+  <div class="shots" id="shots"></div>
+  <div class="row-actions">
+    <button class="btn ghost" data-action="cancel">Batal</button>
+    <button class="btn primary xl" id="btn-shoot">Mulai Foto</button>
+  </div>
+</section>
+
+<!-- 4. Review -->
+<section id="scr-review" class="screen">
+  <h2 class="title">Suka hasilnya?</h2>
+  <div class="review-wrap"><img id="review-img" alt="Hasil foto"></div>
+  <div class="row-actions">
+    <button class="btn ghost" id="btn-retake">Ulangi</button>
+    <button class="btn primary xl" id="btn-save">Simpan</button>
+  </div>
+</section>
+
+<!-- 5. Hasil + QR -->
+<section id="scr-result" class="screen">
+  <div class="result">
+    <div class="result-photo"><img id="result-img" alt="Foto kamu"></div>
+    <div class="result-side">
+      <h2 class="title" id="result-title">Scan untuk ambil fotomu</h2>
+      <div class="qr-card" id="result-qr-card"><div class="qr" id="result-qr"></div></div>
+      <div class="code">KODE <b id="result-code"></b></div>
+      <div class="up-status" id="result-status"></div>
+      <div class="row-actions">
+        <button class="btn ghost" id="btn-print" hidden>Cetak</button>
+        <button class="btn primary" id="btn-done">Selesai</button>
+      </div>
+      <div class="auto-reset" id="result-timer"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Halaman tamu (dibuka dari QR) -->
+<section id="scr-guest" class="screen">
+  <div class="guest">
+    <div class="eyebrow" id="g-sub">Photobooth</div>
+    <h1 class="names small" id="g-title"></h1>
+    <div class="guest-photo"><img id="g-img" alt="Foto kamu" hidden><div class="loader" id="g-loader"></div></div>
+    <p class="g-msg" id="g-msg">Menyiapkan foto…</p>
+    <div class="g-actions" id="g-actions" hidden>
+      <button class="btn primary" id="g-share">Simpan ke HP</button>
+      <a class="btn ghost" id="g-dl" target="_blank" rel="noopener">Download (Google Drive)</a>
+      <a class="link" id="g-open" target="_blank" rel="noopener">Buka di Google Drive</a>
+    </div>
+    <p class="g-hint">iPhone: tekan lama foto → “Simpan ke Foto”.</p>
+    <footer>Kode foto <b id="g-code"></b></footer>
+  </div>
+</section>
+
+<!-- PIN operator -->
+<div class="modal" id="pin-modal" hidden>
+  <div class="pin-box" id="pin-box">
+    <h3>PIN Operator</h3>
+    <div class="pin-dots" id="pin-dots"></div>
+    <div class="keypad" id="keypad"></div>
+  </div>
+</div>
+
+<!-- Sheet (detail galeri, dll) -->
+<div class="modal" id="sheet" hidden><div class="sheet"><button class="sheet-close" data-action="sheet-close">✕</button><div id="sheet-body"></div></div></div>
+
+<!-- Panel admin -->
+<div class="admin" id="admin" hidden>
+  <nav class="admin-nav" id="admin-nav">
+    <div class="admin-brand">Photobooth<small id="ver"></small></div>
+    <button data-tab="event" class="active">Acara</button>
+    <button data-tab="camera">Kamera</button>
+    <button data-tab="session">Sesi</button>
+    <button data-tab="frames">Bingkai</button>
+    <button data-tab="cloud">Drive &amp; QR</button>
+    <button data-tab="print">Cetak</button>
+    <button data-tab="gallery">Galeri</button>
+    <button data-tab="system">Sistem</button>
+    <button class="close" data-action="admin-close">Tutup ✕</button>
+  </nav>
+  <main class="admin-main">
+
+    <section class="pane active" data-pane="event">
+      <h2>Acara</h2>
+      <p class="lead">Teks ini tampil di layar awal dan di bingkai bawaan.</p>
+      <div class="card">
+        <label class="field"><span>Teks kecil atas</span><input type="text" data-setting="eventSubtitle" maxlength="40"></label>
+        <label class="field"><span>Nama / judul utama</span><input type="text" data-setting="eventTitle" maxlength="40"></label>
+        <label class="field"><span>Tanggal</span><input type="text" data-setting="eventDate" maxlength="30"></label>
+        <label class="field"><span>Teks penutup bingkai<small>Kosongkan jika tidak perlu</small></span><input type="text" data-setting="footerText" maxlength="60"></label>
+        <label class="field"><span>Ajakan di layar awal</span><input type="text" data-setting="ctaText" maxlength="40"></label>
+        <label class="field"><span>Warna aksen</span><input type="color" data-setting="accent"></label>
+        <label class="field"><span>Nama folder Drive<small>Satu folder per acara</small></span><input type="text" data-setting="folderName" maxlength="90" id="folder-input"></label>
+      </div>
+      <div class="card"><h3>Statistik perangkat ini</h3><div class="stats" id="stats"></div></div>
+    </section>
+
+    <section class="pane" data-pane="camera">
+      <h2>Kamera</h2>
+      <p class="lead">Default: kamera depan tablet. Untuk Osmo Pocket 3: nyalakan mode Webcam, colok USB-C, tekan “Cari ulang”. Kalau tidak muncul, tablet ini tidak mendukung kamera USB — jalankan aplikasi di laptop.</p>
+      <div class="card">
+        <label class="field"><span>Sumber kamera</span><span class="inline"><select data-setting="cameraId" id="cam-select" style="flex:1"></select><button class="btn ghost sm" id="cam-refresh" type="button">Cari ulang</button></span></label>
+        <label class="field"><span>Resolusi diminta</span><select data-setting="camRes">
+          <option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080 (disarankan)</option>
+          <option value="2560x1440">2560 × 1440</option><option value="3840x2160">3840 × 2160</option></select></label>
+        <label class="field"><span>Cermin preview</span><label class="switch"><input type="checkbox" data-setting="mirrorPreview"><i></i></label></label>
+        <label class="field"><span>Cermin hasil foto<small>Samakan dengan preview agar tidak “terbalik”</small></span><label class="switch"><input type="checkbox" data-setting="mirrorOutput"><i></i></label></label>
+        <label class="field"><span>Zoom digital <b id="zoom-val"></b></span><input type="range" min="1" max="2" step="0.05" data-setting="zoom" data-num></label>
+        <label class="field"><span>Foto resolusi tinggi<small>ImageCapture API — uji dulu, framing bisa beda</small></span><label class="switch"><input type="checkbox" data-setting="useImageCapture"><i></i></label></label>
+        <label class="field"><span>Layar flash<small>Layar putih sesaat sebelum jepret (bantu cahaya wajah)</small></span><label class="switch"><input type="checkbox" data-setting="screenFlash"><i></i></label></label>
+      </div>
+      <div class="card">
+        <h3>Uji kamera</h3>
+        <div class="cam-test">
+          <div class="stage" id="admin-stage"><video class="cam" playsinline muted autoplay></video></div>
+          <div><img id="cam-test-img" alt=""><p class="muted" id="cam-info"></p><button class="btn ghost sm" id="cam-test-btn" type="button">Tes jepret</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="session">
+      <h2>Sesi foto</h2>
+      <p class="lead">Alur tamu: pilih bingkai → hitung mundur → jepret otomatis sesuai jumlah foto di bingkai → review → QR.</p>
+      <div class="card">
+        <label class="field"><span>Hitung mundur (detik)</span><select data-setting="countdown" data-num><option>3</option><option>5</option><option>7</option><option>10</option></select></label>
+        <label class="field"><span>Jeda antar foto (detik)</span><select data-setting="betweenShots" data-num><option>1</option><option>1.5</option><option>2</option><option>3</option></select></label>
+        <label class="field"><span>Boleh ulang sesi</span><select data-setting="retakes" data-num><option value="0">Tidak</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option></select></label>
+        <label class="field"><span>Kembali ke awal setelah (detik)</span><select data-setting="idleReset" data-num><option>30</option><option>45</option><option>60</option><option>90</option><option>120</option></select></label>
+        <label class="field"><span>Suara beep</span><label class="switch"><input type="checkbox" data-setting="sound"><i></i></label></label>
+        <label class="field"><span>Format file<small>PNG = lossless (3–5 MB). JPG 92% ≈ 5× lebih kecil, upload lebih cepat.</small></span><select data-setting="outFormat"><option value="png">PNG</option><option value="jpeg">JPG</option></select></label>
+        <label class="field"><span>Layar penuh otomatis</span><label class="switch"><input type="checkbox" data-setting="autoFullscreen"><i></i></label></label>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="frames">
+      <h2>Bingkai</h2>
+      <p class="lead">Aktifkan bingkai yang boleh dipilih tamu. Jumlah foto per sesi = jumlah kotak foto di bingkai.</p>
+      <div class="card"><div class="frame-list" id="frame-list"></div></div>
+      <div class="card">
+        <h3>Tambah bingkai sendiri</h3>
+        <div class="help">
+          <b>Canva (gratis):</b> buat desain ukuran <code>1200 × 1800 px</code> (4R 300 dpi) atau <code>600 × 1800 px</code> (strip). Area foto = kotak warna <b>hijau #00FF00</b>. Download sebagai PNG.<br>
+          <b>Figma / Photopea:</b> boleh juga PNG dengan lubang <b>transparan</b>.<br>
+          Kotak foto terdeteksi otomatis (maks 8), urut kiri→kanan, atas→bawah.
+        </div>
+        <p class="inline"><input type="file" id="frame-file" accept="image/png,image/jpeg,image/webp"></p>
+        <div id="frame-import"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="cloud">
+      <h2>Google Drive &amp; QR</h2>
+      <p class="lead">Foto diunggah ke Drive lewat Google Apps Script (gratis). Tamu scan QR → halaman download. Kalau internet putus, foto disimpan di tablet dan diunggah otomatis nanti — QR tetap berlaku.</p>
+      <div class="card">
+        <label class="field"><span>URL Web App<small>…/exec dari Apps Script</small></span><input type="url" data-setting="apiUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
+        <label class="field"><span>Token<small>Harus sama dengan TOKEN di Code.gs</small></span><span class="inline"><input type="text" data-setting="apiToken" style="flex:1"><button class="btn ghost sm" id="token-gen" type="button">Acak</button></span></label>
+        <label class="field"><span>URL halaman tamu<small>Kosong = alamat aplikasi ini</small></span><input type="url" data-setting="guestBaseUrl" placeholder="otomatis"></label>
+        <p class="inline"><button class="btn primary sm" id="api-test" type="button">Tes koneksi</button><span class="muted" id="api-result"></span></p>
+      </div>
+      <div class="card">
+        <h3>Antrean upload</h3>
+        <div class="stats" id="queue-stats"></div>
+        <p class="inline" style="margin-top:12px"><button class="btn ghost sm" id="retry-all" type="button">Upload ulang sekarang</button></p>
+      </div>
+      <div class="card">
+        <h3>QR galeri acara</h3>
+        <p class="muted">Aktifkan <code>PUBLIC_EVENT_FOLDER: true</code> di Code.gs, lalu Tes koneksi. QR mengarah ke folder Drive acara.</p>
+        <label class="field"><span>Tampilkan di layar awal</span><label class="switch"><input type="checkbox" data-setting="showGalleryQR"><i></i></label></label>
+        <p class="mono" id="gallery-url"></p>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="print">
+      <h2>Cetak</h2>
+      <p class="lead">Android: pasang “Mopria Print Service” lalu sambungkan printer (mis. Canon SELPHY CP1500) via Wi-Fi. Dialog cetak Android akan muncul — tamu/operator tinggal tekan cetak. Cetak tanpa dialog hanya bisa dari laptop (Chrome <code>--kiosk-printing</code>).</p>
+      <div class="card">
+        <label class="field"><span>Aktifkan cetak</span><label class="switch"><input type="checkbox" data-setting="printEnabled"><i></i></label></label>
+        <label class="field"><span>Cetak otomatis setelah simpan</span><label class="switch"><input type="checkbox" data-setting="autoPrint"><i></i></label></label>
+        <label class="field"><span>Maks cetak per sesi</span><select data-setting="maxPrints" data-num><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="0">Tak terbatas</option></select></label>
+        <label class="field"><span>Ukuran kertas</span><select data-setting="paper">
+          <option value="postcard">Postcard 100 × 148 mm (SELPHY KP-108IN)</option><option value="4x6">4 × 6 inci</option>
+          <option value="a6">A6 105 × 148 mm</option><option value="a4">A4 (tes)</option></select></label>
+        <p class="muted">Strip 2×6 otomatis dicetak 2 kali berdampingan di kertas 4R — potong tengah.</p>
+        <p class="inline"><button class="btn ghost sm" id="print-test" type="button">Tes cetak (foto terakhir)</button></p>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="gallery">
+      <h2>Galeri tablet</h2>
+      <p class="lead">Semua foto juga tersimpan di tablet sebagai cadangan. Ketuk foto untuk QR, cetak, download, atau upload ulang.</p>
+      <p class="inline"><button class="btn ghost sm" id="dl-all" type="button">Download semua</button><button class="btn ghost sm" id="purge-done" type="button">Hapus salinan yang sudah di Drive</button></p>
+      <div class="gal" id="gal"></div>
+    </section>
+
+    <section class="pane" data-pane="system">
+      <h2>Sistem</h2>
+      <div class="card">
+        <label class="field"><span>Ganti PIN (4–8 angka)</span><span class="inline"><input type="password" inputmode="numeric" id="new-pin" maxlength="8" style="flex:1"><button class="btn ghost sm" id="pin-save" type="button">Simpan PIN</button></span></label>
+        <p class="inline"><button class="btn ghost sm" id="fs-btn" type="button">Layar penuh</button><button class="btn ghost sm" id="update-btn" type="button">Paksa update aplikasi</button></p>
+        <p class="muted" id="sys-info"></p>
+      </div>
+      <div class="card help">
+        <h3>Mode kiosk tablet (Xiaomi Pad 5)</h3>
+        1. Chrome › menu › <b>Add to Home screen / Install app</b> → buka dari ikon (tampil layar penuh).<br>
+        2. Aktifkan <b>sematkan aplikasi / screen pinning</b> (cari “pin” di Settings tablet) agar tamu tidak bisa keluar.<br>
+        3. Kunci rotasi, aktifkan Do Not Disturb, colok charger.<br>
+        Buka panel ini: ketuk pojok kiri atas 5× lalu masukkan PIN.
+      </div>
+      <div class="card">
+        <h3>Log error (untuk diagnosa)</h3>
+        <p class="muted">Kosong = aman. Kirim isi ini kalau ada masalah di tablet.</p>
+        <pre class="mono" id="err-log"></pre>
+      </div>
+      <div class="card">
+        <h3>Reset</h3>
+        <p class="inline"><button class="btn danger sm" id="reset-settings" type="button">Reset pengaturan</button></p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="flash"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="print-area"><img id="print-img" alt=""></div>
+
+<!-- Muncul hanya jika app.js gagal dimuat / gagal start -->
+<div id="boot-error" class="boot-error" hidden>
+  <div class="boot-card">
+    <h2>Aplikasi belum termuat</h2>
+    <p id="boot-reason">File <code>app.js</code> tidak ditemukan di samping <code>index.html</code>.</p>
+    <ul>
+      <li>Jangan buka <code>index.html</code> langsung dari dalam ZIP — ekstrak semua file dulu.</li>
+      <li>Untuk acara, buka lewat link Vercel (HTTPS): kamera, QR, dan mode offline butuh alamat web.</li>
+      <li>Pastikan <code>app.js</code>, <code>sw.js</code>, folder <code>vendor/</code>, <code>fonts/</code>, <code>icons/</code> ikut ter-upload.</li>
+    </ul>
+  </div>
+</div>
+<script>setTimeout(function () { if (!window.PB_BOOTED) document.getElementById('boot-error').hidden = false; }, 3000);</script>
+<script src="vendor/qrcode.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

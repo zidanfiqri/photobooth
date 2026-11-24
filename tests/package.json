@@ -1,0 +1,14 @@
+{
+  "name": "photobooth-tests",
+  "private": true,
+  "description": "Tes lokal photobooth: logika Apps Script (tanpa dependensi) + end-to-end di Chrome dengan kamera palsu",
+  "scripts": {
+    "test:backend": "node gas-test.js",
+    "test:e2e": "node e2e.js",
+    "test": "node gas-test.js && node e2e.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "sharp": "^0.35.4"
+  }
+}
