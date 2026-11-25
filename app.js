@@ -1,11 +1,11 @@
 /* =====================================================================
-   PHOTOBOOTH v1.0 — kiosk tamu, panel admin, halaman download tamu
-   Vanilla JS, tanpa build step. Hosting: file statis + HTTPS.
+   PHOTOBOOTH v1.2 — kiosk tamu, halaman atribut (stiker), panel admin,
+   halaman download tamu. Vanilla JS, tanpa build step. Hosting: statis + HTTPS.
    ===================================================================== */
 'use strict';
 window.PB_BOOTED = true; // dibaca watchdog di index.html
 
-const VERSION = '1.0.1';
+const VERSION = '1.2.0';
 
 /* ---- log error: tampil di Admin › Sistem (tablet tidak punya devtools) ---- */
 const ErrLog = [];
@@ -15,9 +15,10 @@ function logErr(msg) {
 }
 addEventListener('error', (e) => logErr((e.message || 'error') + (e.filename ? ` @${e.filename.split('/').pop()}:${e.lineno}` : '')));
 addEventListener('unhandledrejection', (e) => logErr('promise: ' + ((e.reason && (e.reason.message || e.reason)) || 'unknown')));
-// Opsional: isi URL Web App Apps Script (…/exec) sebelum deploy → link QR lebih pendek
-// dan tablet baru langsung terhubung. Boleh dikosongkan (atur dari panel admin).
-const BAKED_API_URL = '';
+// URL Web App Apps Script (…/exec) bawaan → link QR tamu lebih pendek (tanpa parameter d=).
+// Bukan rahasia (ikut tercantum di setiap link tamu). TOKEN tetap TIDAK disimpan di sini:
+// token masuk ke tablet lewat link setup (#setup=…) atau Admin › Drive & QR.
+const BAKED_API_URL = 'https://script.google.com/macros/s/AKfycbw1TquPe1gQG7hiAYnrRyPOOvLTiMW4WTW5mH4pnA633V1TAH5SH0nTYSnYdThrRJU6/exec';
 
 /* ---------------------------------------------------------------- utils */
 const $ = (s, el = document) => el.querySelector(s);
@@ -103,6 +104,41 @@ function hexA(hex, a) {
   const n = parseInt(m[1], 16);
   return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 }
+/** t < 0 → lebih gelap, t > 0 → lebih terang (0..1) */
+function shade(hex, t) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); const n = m ? parseInt(m[1], 16) : 0xb08d57;
+  return '#' + [n >> 16, (n >> 8) & 255, n & 255]
+    .map((v) => Math.round(t < 0 ? v * (1 + t) : v + (255 - v) * t)).map((v) => clamp(v, 0, 255).toString(16).padStart(2, '0')).join('');
+}
+
+/* ---- pop-up (pengganti alert/confirm bawaan: tidak memblokir kiosk) ---- */
+const ICONS = {
+  printer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3.5h10V8"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v6.5H7z"/><path d="M17.5 11h.01"/></svg>',
+  printerOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3.5h10V8"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v6.5H7z"/><path d="M3 3l18 18" stroke="#b4503f" stroke-width="2"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16.5 9.5"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.01"/></svg>',
+};
+const Dialog = { close: null };
+function dialog({ icon = '', title = '', msg = '', html = '', actions = [{ label: 'OK', primary: true }], auto = 0 } = {}) {
+  if (Dialog.close) Dialog.close(-1);
+  const box = $('#dialog'); const ic = $('#dlg-icon');
+  ic.innerHTML = ICONS[icon] || ''; ic.hidden = !icon;
+  $('#dlg-title').textContent = title; $('#dlg-msg').textContent = msg; $('#dlg-msg').hidden = !msg; $('#dlg-extra').innerHTML = html;
+  const row = $('#dlg-actions'); row.innerHTML = '';
+  return new Promise((resolve) => {
+    let t = 0;
+    const close = (v) => { clearTimeout(t); box.hidden = true; if (Dialog.close === close) Dialog.close = null; resolve(v); };
+    actions.forEach((a, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (a.primary ? 'primary' : 'ghost'); b.textContent = a.label;
+      b.onclick = async () => { if (a.fn && (await a.fn(b)) === true) return; close(i); };
+      row.appendChild(b);
+    });
+    box.onclick = (e) => { if (e.target === box) close(-1); };
+    if (auto) t = setTimeout(() => close(-1), auto * 1000);
+    Dialog.close = close; box.hidden = false;
+  });
+}
 
 /* ------------------------------------------------------------- settings */
 const DEFAULTS = {
@@ -112,6 +148,8 @@ const DEFAULTS = {
   countdown: 3, betweenShots: 1.5, retakes: 1, idleReset: 60, sound: true, outFormat: 'png', jpegQuality: 0.92, autoFullscreen: true,
   disabledFrames: [], apiUrl: '', apiToken: '', guestBaseUrl: '', showGalleryQR: false, galleryUrl: '',
   printEnabled: false, autoPrint: false, maxPrints: 1, paper: 'postcard', pin: '1234',
+  // v1.2
+  saveToGallery: true, showShare: true, decorMode: 'optional', frameThemes: {},
 };
 const Settings = {
   d: {},
@@ -120,6 +158,7 @@ const Settings = {
     try { saved = JSON.parse(localStorage.getItem('pb.settings') || '{}') || {}; } catch (e) { saved = {}; }
     this.d = Object.assign({}, DEFAULTS, saved);
     if (!Array.isArray(this.d.disabledFrames)) this.d.disabledFrames = [];
+    if (!this.d.frameThemes || typeof this.d.frameThemes !== 'object') this.d.frameThemes = {};
     if (!this.d.apiUrl && BAKED_API_URL) this.d.apiUrl = BAKED_API_URL;
     return this.d;
   },
@@ -127,6 +166,8 @@ const Settings = {
   set(k, v) { this.d[k] = v; this.save(); },
 };
 const S = () => Settings.d;
+/** Drive siap dipakai = URL Web App + token terisi (token kosong pasti ditolak backend) */
+const cloudReady = () => !!((S().apiUrl || '').trim() && (S().apiToken || '').trim());
 const folderName = () => (S().folderName || `${S().eventTitle} — ${S().eventDate}`).trim();
 
 /* ------------------------------------------------------------ IndexedDB */
@@ -134,13 +175,19 @@ const DB = {
   db: null,
   open() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('photobooth', 1);
+      const r = indexedDB.open('photobooth', 2); // v2: + store "stickers" (atribut kustom)
       r.onupgradeneeded = () => {
         const db = r.result;
         if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('frames')) db.createObjectStore('frames', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('stickers')) db.createObjectStore('stickers', { keyPath: 'id' });
       };
-      r.onsuccess = () => { this.db = r.result; res(this.db); };
+      r.onsuccess = () => {
+        this.db = r.result;
+        this.db.onversionchange = () => { this.db.close(); location.reload(); }; // versi baru dibuka di tab lain
+        res(this.db);
+      };
+      r.onblocked = () => toast('Tutup tab/jendela photobooth lain agar pembaruan bisa dipasang', 8000);
       r.onerror = () => rej(r.error);
     });
   },
@@ -246,6 +293,7 @@ function applyCamStyle() {
 const INK = '#2f2924', INK2 = '#5a5047', PAPER = '#fbf8f2';
 const SERIF = '"Cormorant Garamond", "Noto Serif", Georgia, serif';
 const SCRIPT = '"Great Vibes", "Cormorant Garamond", cursive';
+const SANS = '"Jost", system-ui, sans-serif';
 const font = (style, size, family) => `${style} ${Math.round(size)}px ${family}`;
 
 function paperBg(ctx, w, h) {
@@ -295,7 +343,7 @@ function photoBorder(ctx, s, off, color, lw) { ctx.save(); ctx.strokeStyle = col
 
 const BUILTIN = [
   {
-    id: 'classic', name: 'Klasik', w: 1200, h: 1800,
+    id: 'classic', name: 'Klasik', w: 1200, h: 1800, theme: 'elegan',
     slots: [{ x: 100, y: 100, w: 1000, h: 1250 }],
     bg(ctx, f) { paperBg(ctx, f.w, f.h); },
     fg(ctx, f) {
@@ -304,7 +352,7 @@ const BUILTIN = [
     },
   },
   {
-    id: 'strip3', name: 'Photo Strip', w: 600, h: 1800,
+    id: 'strip3', name: 'Photo Strip', w: 600, h: 1800, theme: 'lucu',
     slots: [40, 450, 860].map((y) => ({ x: 40, y, w: 520, h: 390 })),
     bg(ctx, f) { paperBg(ctx, f.w, f.h); },
     fg(ctx, f) {
@@ -313,7 +361,7 @@ const BUILTIN = [
     },
   },
   {
-    id: 'grid4', name: 'Kolase', w: 1200, h: 1800,
+    id: 'grid4', name: 'Kolase', w: 1200, h: 1800, theme: 'floral',
     slots: [[70, 70], [612, 70], [70, 785], [612, 785]].map(([x, y]) => ({ x, y, w: 518, h: 691 })),
     bg(ctx, f) { paperBg(ctx, f.w, f.h); },
     fg(ctx, f) {
@@ -378,6 +426,132 @@ async function frameThumb(f) {
   thumbCache.set(key, url); return url;
 }
 function invalidateThumbs() { for (const u of thumbCache.values()) URL.revokeObjectURL(u); thumbCache.clear(); }
+
+/* ------------------------------------------------- atribut (stiker) */
+// Ilustrasi bawaan ada di stickers.js (SVG orisinal). Kustom = PNG transparan upload admin (IndexedDB "stickers").
+const PACKS = (window.PB_STICKERS && window.PB_STICKERS.packs) || [];
+const STICKERS = (window.PB_STICKERS && window.PB_STICKERS.items) || [];
+let CUSTOM_STK = [];
+const STK_MAX = 24;
+async function loadCustomStickers() {
+  try { CUSTOM_STK = (await DB.all('stickers')).sort((a, b) => a.created - b.created).map((x) => ({ ...x, pack: 'kustom', custom: true })); }
+  catch (e) { CUSTOM_STK = []; }
+}
+const findSticker = (id) => STICKERS.find((x) => x.id === id) || CUSTOM_STK.find((x) => x.id === id) || null;
+const stickersOf = (pack) => (pack === 'kustom' ? CUSTOM_STK : STICKERS.filter((x) => x.pack === pack));
+const frameTheme = (f) => (f && ((S().frameThemes || {})[f.id] || f.theme)) || 'elegan';
+const availablePacks = () => PACKS.filter((p) => stickersOf(p.id).length);
+
+/** SVG bawaan + warna aksen acara; size = lebar raster (px) */
+function svgMarkup(item, size = 512) {
+  const A = S().accent || DEFAULTS.accent;
+  let svg = item.svg.replace(/\{\{A\}\}/g, A).replace(/\{\{A2\}\}/g, shade(A, -0.32)).replace(/\{\{L\}\}/g, shade(A, 0.5));
+  const vb = /viewBox="\s*([-\d.]+)[\s,]+([-\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"/.exec(svg);
+  const vw = vb ? Number(vb[3]) : 200, vh = vb ? Number(vb[4]) : 200;
+  svg = svg.replace('<svg ', `<svg width="${Math.round(size)}" height="${Math.round((size * vh) / vw)}" `);
+  return { svg, ar: vw / vh };
+}
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+/** Stiker teks digambar dengan font aplikasi (offline). scale > 1 = resolusi lebih tinggi. */
+function textSticker(item, scale = 1) {
+  const A = S().accent || DEFAULTS.accent;
+  const text = String(item.text || '').replace('{{TITLE}}', S().eventTitle || '').replace('{{DATE}}', S().eventDate || '').trim() || '♥';
+  const c = makeCanvas(4, 4); let ctx = c.getContext('2d');
+  const style = item.style || 'script';
+  if (style === 'script') {
+    const size = 200 * scale; ctx.font = font('400', size, SCRIPT);
+    const m = ctx.measureText(text);
+    const L = m.actualBoundingBoxLeft || 0, R = m.actualBoundingBoxRight || m.width;
+    const U = m.actualBoundingBoxAscent || size * 0.8, D = m.actualBoundingBoxDescent || size * 0.3, pad = size * 0.14;
+    c.width = Math.ceil(L + R + pad * 2); c.height = Math.ceil(U + D + pad * 2);
+    ctx = c.getContext('2d'); ctx.font = font('400', size, SCRIPT);
+    const x = pad + L, y = pad + U;
+    ctx.lineJoin = 'round'; ctx.lineWidth = size * 0.11; ctx.strokeStyle = '#fff'; ctx.strokeText(text, x, y);
+    ctx.fillStyle = item.color || shade(A, -0.35); ctx.fillText(text, x, y);
+  } else if (style === 'bubble') {
+    const size = 110 * scale; ctx.font = font('600', size, SANS);
+    const tw = ctx.measureText(text).width, lw = size * 0.08, px = size * 0.52, py = size * 0.34, tail = size * 0.5;
+    const bw = tw + px * 2, bh = size + py * 2, x0 = lw + 1, y0 = lw + 1;
+    c.width = Math.ceil(bw + x0 * 2); c.height = Math.ceil(bh + tail + y0 * 2);
+    ctx = c.getContext('2d');
+    ctx.beginPath(); roundRectPath(ctx, x0, y0, bw, bh, bh / 2);
+    ctx.moveTo(x0 + bw * 0.2, y0 + bh - 1); ctx.lineTo(x0 + bw * 0.13, y0 + bh + tail); ctx.lineTo(x0 + bw * 0.36, y0 + bh - 1); ctx.closePath();
+    ctx.lineJoin = 'round'; ctx.lineWidth = lw * 2; ctx.strokeStyle = A; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.font = font('600', size, SANS); ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, x0 + bw / 2, y0 + bh / 2 + size * 0.04);
+  } else { // banner / pita
+    const size = 84 * scale, T = text.toUpperCase();
+    ctx.font = font('600', size, SERIF); if ('letterSpacing' in ctx) ctx.letterSpacing = size * 0.14 + 'px';
+    const tw = ctx.measureText(T).width, h = size * 1.6, ear = h * 0.75, drop = h * 0.3, bandW = tw + size * 1.4;
+    c.width = Math.ceil(bandW + ear * 2); c.height = Math.ceil(h + drop + 2);
+    ctx = c.getContext('2d'); const W = c.width;
+    ctx.fillStyle = shade(A, -0.3); // ekor kiri & kanan
+    ctx.beginPath(); ctx.moveTo(0, drop); ctx.lineTo(ear + 2, drop); ctx.lineTo(ear + 2, h + drop); ctx.lineTo(0, h + drop); ctx.lineTo(ear * 0.42, drop + h / 2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(W, drop); ctx.lineTo(W - ear - 2, drop); ctx.lineTo(W - ear - 2, h + drop); ctx.lineTo(W, h + drop); ctx.lineTo(W - ear * 0.42, drop + h / 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = shade(A, -0.5); // lipatan
+    ctx.beginPath(); ctx.moveTo(ear, h); ctx.lineTo(ear + 2, h + drop); ctx.lineTo(ear + h * 0.32, h); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(W - ear, h); ctx.lineTo(W - ear - 2, h + drop); ctx.lineTo(W - ear - h * 0.32, h); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = A; ctx.fillRect(ear, 0, bandW, h);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(1, size * 0.035); ctx.strokeRect(ear + size * 0.18, size * 0.18, bandW - size * 0.36, h - size * 0.36);
+    ctx.font = font('600', size, SERIF); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    spacedText(ctx, T, W / 2, h / 2 + size * 0.04, size * 0.14);
+  }
+  return c;
+}
+/** Aset tampilan (URL untuk <img>) — di-cache per warna aksen & teks acara */
+const stkCache = new Map();
+const stkKey = (id) => [id, S().accent, S().eventTitle, S().eventDate].join('|');
+function stickerAsset(id) {
+  const key = stkKey(id); if (stkCache.has(key)) return stkCache.get(key);
+  const p = (async () => {
+    const item = findSticker(id); if (!item) throw new Error('atribut tidak ditemukan: ' + id);
+    if (item.custom) { const url = URL.createObjectURL(item.blob); const img = await loadImg(url); return { url, src: img, ar: img.naturalWidth / img.naturalHeight }; }
+    if (item.kind === 'text') { const cv = textSticker(item); const url = URL.createObjectURL(await canvasToBlob(cv, 'image/png')); return { url, src: cv, ar: cv.width / cv.height }; }
+    const { svg, ar } = svgMarkup(item, 512);
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })); await loadImg(url);
+    return { url, src: null, ar };
+  })();
+  stkCache.set(key, p); p.catch(() => stkCache.delete(key));
+  return p;
+}
+function invalidateStickers() { for (const p of stkCache.values()) p.then((a) => URL.revokeObjectURL(a.url)).catch(() => {}); stkCache.clear(); }
+/** Raster resolusi penuh untuk hasil akhir (SVG digambar tepat di ukuran target → tajam) */
+async function stickerRaster(id, px) {
+  const item = findSticker(id); if (!item) throw new Error('atribut tidak ditemukan: ' + id);
+  if (item.custom) return { src: (await stickerAsset(id)).src };
+  if (item.kind === 'text') { const base = (await stickerAsset(id)).src; return { src: base.width >= px ? base : textSticker(item, (px / base.width) * 1.02) }; }
+  const url = URL.createObjectURL(new Blob([svgMarkup(item, clamp(Math.ceil(px), 64, 4096)).svg], { type: 'image/svg+xml' }));
+  return { src: await loadImg(url), url };
+}
+/** bingkai + foto (base) + stiker → kanvas akhir */
+async function composeFinal(base, list) {
+  if (!base || !list || !list.length) return base;
+  const c = makeCanvas(base.width, base.height); const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(base, 0, 0);
+  for (const s of list) {
+    const w = s.w, h = s.w / s.ar; let r;
+    try { r = await stickerRaster(s.id, w); } catch (e) { logErr('atribut: ' + e.message); continue; }
+    ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.rot || 0); if (s.flip) ctx.scale(-1, 1);
+    ctx.drawImage(r.src, -w / 2, -h / 2, w, h); ctx.restore();
+    if (r.url) URL.revokeObjectURL(r.url);
+  }
+  return c;
+}
+async function importSticker(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImg(url); const W = img.naturalWidth, H = img.naturalHeight;
+    if (W < 40 || H < 40) throw new Error('Gambar terlalu kecil (min 40 px).');
+    const k = Math.min(1, 1024 / Math.max(W, H)); const c = makeCanvas(Math.round(W * k), Math.round(H * k));
+    const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, 0, 0, c.width, c.height);
+    const blob = await canvasToBlob(c, 'image/png');
+    return { id: 'k_' + uid(6), name: (file.name || 'Atribut').replace(/\.[^.]+$/, '').slice(0, 30), blob, w: c.width, h: c.height, created: Date.now() };
+  } finally { URL.revokeObjectURL(url); }
+}
 
 /* ------ import bingkai kustom: PNG transparan ATAU kotak hijau #00FF00 ------ */
 function components(mask, W, H, minArea) {
@@ -515,7 +689,7 @@ const Uploader = {
     this.kick();
   },
   async kick() {
-    if (this.busy || !S().apiUrl || !DB.db || !navigator.onLine) return;
+    if (this.busy || !cloudReady() || !DB.db || !navigator.onLine) return;
     this.busy = true;
     try {
       for (let guard = 0; guard < 1000; guard++) {
@@ -561,9 +735,9 @@ function updateStatus() {
   clearTimeout(statusTimer);
   statusTimer = setTimeout(async () => {
     $('#st-cam').className = 'dot ' + (Cam.ready ? 'ok' : 'bad');
-    const c = await counts(); const q = c.pending + c.error + (S().apiUrl ? c.local : 0);
+    const c = await counts(); const q = c.pending + c.error + (cloudReady() ? c.local : 0);
     const cl = $('#st-cloud');
-    if (!S().apiUrl) cl.className = 'dot'; else if (!navigator.onLine || c.error) cl.className = 'dot bad'; else if (q) cl.className = 'dot warn'; else cl.className = 'dot ok';
+    if (!cloudReady()) cl.className = 'dot'; else if (!navigator.onLine || c.error) cl.className = 'dot bad'; else if (q) cl.className = 'dot warn'; else cl.className = 'dot ok';
     $('#st-queue').textContent = q ? `${q} antre` : '';
   }, 250);
 }
@@ -579,7 +753,10 @@ function fitInto(ctx, img, x, y, w, h) {
 async function printRecord(rec) {
   if (!rec) return;
   const max = Number(S().maxPrints) || 0;
-  if (max && (rec.printed || 0) >= max) { toast('Batas cetak untuk foto ini sudah tercapai'); return; }
+  if (max && (rec.printed || 0) >= max) {
+    dialog({ icon: 'printer', title: 'Batas cetak tercapai', msg: `Foto ini sudah dicetak ${rec.printed}×. Versi digital tetap bisa diambil lewat QR.`, auto: 10 });
+    return;
+  }
   try {
     const bmp = await createImageBitmap(rec.blob);
     const [pw, ph] = PAPERS[S().paper] || PAPERS.postcard;
@@ -602,10 +779,21 @@ async function printRecord(rec) {
     setTimeout(() => URL.revokeObjectURL(url), 120000);
   } catch (e) { console.error(e); toast('Gagal menyiapkan cetak: ' + (e.message || e)); }
 }
+/** Tombol Cetak tamu: selalu tampil. Browser tidak bisa mendeteksi printer, jadi status
+    "tersambung" = sakelar operator (Admin › Cetak). Mati → pop-up "Printer tidak tersambung". */
+function printOrWarn(rec) {
+  if (!rec) return;
+  if (!S().printEnabled) {
+    dialog({ icon: 'printerOff', title: 'Printer tidak tersambung', msg: 'Printer belum terhubung ke photobooth. Fotomu tetap aman — scan QR atau tekan Bagikan untuk menyimpan versi digital.', auto: 12 });
+    return;
+  }
+  printRecord(rec);
+}
 
 /* ===================================================== KIOSK FLOW */
 const UI = { screen: 'attract', idleTimer: null, resultTimer: null };
-const Session = { frame: null, shots: [], retakesLeft: 0, id: '', token: null, running: false, canvas: null, zoom: 1, record: null };
+const Session = { frame: null, shots: [], retakesLeft: 0, id: '', token: null, running: false, canvas: null, zoom: 1, record: null,
+  stickers: [], undo: [], sel: -1, saving: false };
 
 function show(name) {
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'scr-' + name));
@@ -615,11 +803,14 @@ function armIdle() {
   clearTimeout(UI.idleTimer);
   if (!$('#admin').hidden) return;
   if (UI.screen === 'review') UI.idleTimer = setTimeout(() => { if ($('#admin').hidden && UI.screen === 'review') saveSession(); }, 45000);
+  else if (UI.screen === 'decor') UI.idleTimer = setTimeout(() => { if ($('#admin').hidden && UI.screen === 'decor') saveSession(); }, 90000);
   else if (UI.screen === 'frames' || (UI.screen === 'capture' && !Session.running)) UI.idleTimer = setTimeout(() => { if ($('#admin').hidden) goHome(); }, 90000);
 }
 function goHome() {
   Session.token = null; Session.running = false;
   clearInterval(UI.resultTimer); clearTimeout(UI.idleTimer); $('#countdown').textContent = '';
+  if (Dialog.close) Dialog.close(-1);
+  Session.stickers = []; Session.undo = []; Session.sel = -1; $('#decor-layer').innerHTML = '';
   show('attract'); renderAttract();
 }
 let recentUrls = [];
@@ -658,7 +849,8 @@ function renderFrameGrid() {
   }
 }
 function startSession(frame) {
-  Object.assign(Session, { frame, shots: [], retakesLeft: Number(S().retakes) || 0, id: uid(10), token: uid(6), running: false, canvas: null, zoom: Number(S().zoom) || 1, record: null });
+  Object.assign(Session, { frame, shots: [], retakesLeft: Number(S().retakes) || 0, id: uid(10), token: uid(6), running: false, canvas: null, zoom: Number(S().zoom) || 1, record: null,
+    stickers: [], undo: [], sel: -1, saving: false });
   prepareCapture(); show('capture'); Cam.ensure();
 }
 function prepareCapture() {
@@ -737,44 +929,215 @@ async function runShots() {
 }
 function cancelSession() { goHome(); }
 async function toReview() {
-  const c = await renderFrame(Session.frame, Session.shots, { zoom: Session.zoom });
-  Session.canvas = c;
-  const url = URL.createObjectURL(await canvasToBlob(scaleCanvas(c, 1400), 'image/jpeg', 0.9));
-  const img = $('#review-img'); if (img.dataset.url) URL.revokeObjectURL(img.dataset.url); img.dataset.url = url; img.src = url;
-  const rb = $('#btn-retake'); rb.hidden = Session.retakesLeft <= 0; rb.textContent = `Ulangi (${Session.retakesLeft}×)`;
+  Session.canvas = await renderFrame(Session.frame, Session.shots, { zoom: Session.zoom }); // dasar tanpa stiker
+  await refreshReview(); configReview();
   $('#btn-save').disabled = false;
   show('review');
 }
+async function refreshReview() {
+  const c = await composeFinal(Session.canvas, Session.stickers);
+  const url = URL.createObjectURL(await canvasToBlob(scaleCanvas(c, 1400), 'image/jpeg', 0.9));
+  const img = $('#review-img'); if (img.dataset.url) URL.revokeObjectURL(img.dataset.url); img.dataset.url = url; img.src = url;
+}
+function configReview() {
+  const mode = S().decorMode, can = mode !== 'off' && availablePacks().length > 0;
+  const rb = $('#btn-retake'); rb.hidden = Session.retakesLeft <= 0; rb.textContent = `Ulangi (${Session.retakesLeft}×)`;
+  const db = $('#btn-decor'); db.hidden = !can || mode === 'always';
+  $('.lbl', db).textContent = Session.stickers.length ? `Atribut (${Session.stickers.length})` : 'Tambah atribut';
+  $('#btn-save').textContent = can && mode === 'always' ? 'Lanjut ›' : 'Simpan';
+}
+function reviewNext() {
+  if (S().decorMode === 'always' && availablePacks().length) openDecor(); else saveSession();
+}
 function retake() {
   if (Session.retakesLeft <= 0) return;
-  Session.retakesLeft--; Session.shots = []; Session.token = uid(6); prepareCapture(); show('capture');
+  Session.retakesLeft--; Session.shots = []; Session.token = uid(6); prepareCapture(); show('capture'); // atribut tetap disimpan
 }
-async function saveSession() {
+
+/* -------------------------------------------- halaman atribut (stiker) */
+const Decor = { k: 1, pack: '', ptr: new Map(), mode: '', start: null, moved: false };
+async function openDecor() {
   if (!Session.canvas || Session.record) return;
-  const btn = $('#btn-save'); btn.disabled = true;
+  const img = $('#decor-base');
+  const url = URL.createObjectURL(await canvasToBlob(scaleCanvas(Session.canvas, 1600), 'image/jpeg', 0.9));
+  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url); img.dataset.url = url; img.src = url;
+  const th = frameTheme(Session.frame), packs = availablePacks();
+  const ordered = [...packs.filter((p) => p.id === th), ...packs.filter((p) => p.id !== th)];
+  if (!ordered.some((p) => p.id === Decor.pack)) Decor.pack = (ordered[0] || {}).id || '';
+  if (!Session.stickers.length) Decor.pack = (ordered[0] || {}).id || '';
+  $('#decor-tabs').innerHTML = ordered.map((p) => `<button type="button" data-pack="${esc(p.id)}">${esc(p.name)}${p.id === th ? '<small>✦ cocok</small>' : ''}</button>`).join('');
+  $('#decor-save').disabled = false;
+  show('decor'); renderTray(); layoutDecor(); renderStickers();
+}
+function renderTray() {
+  $$('#decor-tabs [data-pack]').forEach((b) => b.classList.toggle('active', b.dataset.pack === Decor.pack));
+  const tray = $('#decor-tray'); tray.innerHTML = ''; tray.scrollLeft = 0; tray.scrollTop = 0;
+  for (const it of stickersOf(Decor.pack)) {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.stk = it.id; b.title = it.name || '';
+    b.innerHTML = '<img alt="" draggable="false">'; tray.appendChild(b);
+    stickerAsset(it.id).then((a) => { $('img', b).src = a.url; }).catch((e) => { b.hidden = true; logErr(e.message); });
+  }
+}
+function layoutDecor() {
+  const f = Session.frame; if (!f || UI.screen !== 'decor') return;
+  const land = innerWidth > innerHeight * 1.05, side = $('#decor-side'), top = $('#scr-decor .topbar');
+  let maxW, maxH;
+  if (land) { maxW = innerWidth - side.offsetWidth - 110; maxH = innerHeight - top.offsetHeight - 64; }
+  else { maxW = innerWidth * 0.92; maxH = innerHeight - top.offsetHeight - side.offsetHeight - 78; }
+  maxW = Math.max(160, maxW); maxH = Math.max(200, maxH);
+  const ar = f.w / f.h; let w = maxW, h = w / ar; if (h > maxH) { h = maxH; w = h * ar; }
+  const st = $('#decor-stage'); st.style.width = Math.round(w) + 'px'; st.style.height = Math.round(h) + 'px';
+  Decor.k = Math.round(w) / f.w;
+}
+function placeSticker(el, s) {
+  const k = Decor.k;
+  el.style.width = s.w * k + 'px'; el.style.height = (s.w / s.ar) * k + 'px';
+  el.style.left = s.x * k + 'px'; el.style.top = s.y * k + 'px';
+  el.style.transform = `translate(-50%,-50%) rotate(${s.rot || 0}rad)`;
+  $('img', el).style.transform = s.flip ? 'scaleX(-1)' : '';
+}
+function renderStickers() {
+  const layer = $('#decor-layer'); layer.innerHTML = '';
+  Session.stickers.forEach((s, i) => {
+    const el = document.createElement('div'); el.className = 'stk' + (i === Session.sel ? ' sel' : ''); el.dataset.i = i;
+    el.innerHTML = '<img alt="" draggable="false"><button type="button" class="stk-x" aria-label="Hapus atribut">✕</button><span class="stk-h" aria-label="Putar / ubah ukuran">↻</span>';
+    placeSticker(el, s); layer.appendChild(el);
+    stickerAsset(s.id).then((a) => { $('img', el).src = a.url; }).catch(() => {});
+  });
+  updateDecorTools();
+}
+function updateDecorTools() {
+  const has = Session.sel >= 0 && Session.sel < Session.stickers.length;
+  $('#decor-undo').disabled = !Session.undo.length; $('#decor-flip').disabled = !has; $('#decor-del').disabled = !has;
+  $('#decor-clear').disabled = !Session.stickers.length;
+  $('#decor-count').textContent = Session.stickers.length ? `${Session.stickers.length}/${STK_MAX}` : '';
+}
+function pushUndo() { Session.undo.push(JSON.stringify(Session.stickers)); if (Session.undo.length > 40) Session.undo.shift(); }
+function selectSticker(i) {
+  if (i >= 0 && i < Session.stickers.length - 1) { const [s] = Session.stickers.splice(i, 1); Session.stickers.push(s); i = Session.stickers.length - 1; }
+  Session.sel = i; renderStickers();
+}
+async function addSticker(id) {
+  if (Session.stickers.length >= STK_MAX) { toast(`Maksimal ${STK_MAX} atribut`); return; }
+  const item = findSticker(id); if (!item) return;
+  let a; try { a = await stickerAsset(id); } catch (e) { toast('Atribut gagal dimuat'); return; }
+  const f = Session.frame, slot = f.slots[0] || { x: 0, y: 0, w: f.w, h: f.h };
+  const rel = item.kind === 'text' ? (item.style === 'script' ? 0.52 : 0.4) : a.ar > 1.8 ? 0.46 : 0.28;
+  const w = Math.min(f.w * rel, f.h * 0.4 * a.ar);
+  const jit = () => (Math.random() - 0.5) * 0.18;
+  pushUndo();
+  Session.stickers.push({ id, x: slot.x + slot.w * (0.5 + jit()), y: slot.y + slot.h * (0.5 + jit()), w, ar: a.ar, rot: 0, flip: false });
+  Session.sel = Session.stickers.length - 1; renderStickers();
+}
+function removeSticker(i) {
+  if (i < 0 || i >= Session.stickers.length) return;
+  pushUndo(); Session.stickers.splice(i, 1); Session.sel = -1; renderStickers();
+}
+const ptDist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+const ptAng = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+function snapRot(r) { const q = Math.PI / 2, n = Math.round(r / q); return Math.abs(r - n * q) < 0.06 ? n * q : r; }
+function decorDown(e) {
+  e.preventDefault();
+  const stage = $('#decor-stage');
+  try { stage.setPointerCapture(e.pointerId); } catch (err) { /* pointer sintetis (tes) */ }
+  Decor.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const x = e.target.closest('.stk-x'), hd = e.target.closest('.stk-h'), el = e.target.closest('.stk');
+  if (x && el) { Decor.ptr.delete(e.pointerId); removeSticker(Number(el.dataset.i)); return; }
+  if (Decor.ptr.size >= 2 && Session.sel >= 0) { beginPinch(); return; }
+  if (hd && el) {
+    selectSticker(Number(el.dataset.i)); const s = Session.stickers[Session.sel]; const c = stickerCenter(s);
+    Decor.mode = 'handle'; Decor.start = { a0: ptAng(c, Decor.ptr.get(e.pointerId)), d0: Math.max(8, ptDist(c, Decor.ptr.get(e.pointerId))), rot0: s.rot || 0, w0: s.w };
+    pushUndo(); return;
+  }
+  if (el) {
+    selectSticker(Number(el.dataset.i)); const s = Session.stickers[Session.sel];
+    Decor.mode = 'move'; Decor.moved = false; Decor.start = { px: e.clientX, py: e.clientY, x0: s.x, y0: s.y }; return;
+  }
+  if (Decor.ptr.size === 1) { Decor.mode = ''; if (Session.sel !== -1) { Session.sel = -1; renderStickers(); } }
+}
+function stickerCenter(s) { const r = $('#decor-stage').getBoundingClientRect(); return { x: r.left + s.x * Decor.k, y: r.top + s.y * Decor.k }; }
+function beginPinch() {
+  const [p1, p2] = [...Decor.ptr.values()]; const s = Session.stickers[Session.sel];
+  Decor.mode = 'pinch'; Decor.start = { d0: Math.max(8, ptDist(p1, p2)), a0: ptAng(p1, p2), w0: s.w, rot0: s.rot || 0, m0: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }, x0: s.x, y0: s.y };
+  pushUndo();
+}
+function decorMove(e) {
+  if (!Decor.ptr.has(e.pointerId)) return;
+  Decor.ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const s = Session.stickers[Session.sel]; if (!s || !Decor.mode) return;
+  const f = Session.frame, k = Decor.k, st = Decor.start, el = $('#decor-layer').children[Session.sel];
+  const minW = f.w * 0.06, maxW = f.w * 1.6;
+  if (Decor.mode === 'move') {
+    const dx = (e.clientX - st.px) / k, dy = (e.clientY - st.py) / k;
+    if (!Decor.moved) { if (Math.hypot(dx, dy) * k < 3) return; Decor.moved = true; pushUndo(); updateDecorTools(); }
+    s.x = clamp(st.x0 + dx, 0, f.w); s.y = clamp(st.y0 + dy, 0, f.h);
+  } else if (Decor.mode === 'handle') {
+    const c = stickerCenter(s), p = Decor.ptr.get(e.pointerId);
+    s.rot = snapRot(st.rot0 + (ptAng(c, p) - st.a0)); s.w = clamp((st.w0 * ptDist(c, p)) / st.d0, minW, maxW);
+  } else if (Decor.mode === 'pinch' && Decor.ptr.size >= 2) {
+    const [p1, p2] = [...Decor.ptr.values()];
+    s.w = clamp((st.w0 * ptDist(p1, p2)) / st.d0, minW, maxW); s.rot = snapRot(st.rot0 + (ptAng(p1, p2) - st.a0));
+    s.x = clamp(st.x0 + ((p1.x + p2.x) / 2 - st.m0.x) / k, 0, f.w); s.y = clamp(st.y0 + ((p1.y + p2.y) / 2 - st.m0.y) / k, 0, f.h);
+  }
+  if (el) placeSticker(el, s);
+}
+function decorUp(e) {
+  Decor.ptr.delete(e.pointerId);
+  if (Decor.mode === 'pinch' && Decor.ptr.size === 1 && Session.stickers[Session.sel]) {
+    const [p] = [...Decor.ptr.values()], s = Session.stickers[Session.sel];
+    Decor.mode = 'move'; Decor.moved = true; Decor.start = { px: p.x, py: p.y, x0: s.x, y0: s.y };
+  } else if (!Decor.ptr.size) Decor.mode = '';
+  updateDecorTools();
+}
+function decorTool(act) {
+  const i = Session.sel, s = Session.stickers[i];
+  if (act === 'undo' && Session.undo.length) { Session.stickers = JSON.parse(Session.undo.pop()); Session.sel = -1; renderStickers(); }
+  else if (act === 'flip' && s) { pushUndo(); s.flip = !s.flip; renderStickers(); }
+  else if (act === 'del' && s) removeSticker(i);
+  else if (act === 'clear' && Session.stickers.length) { pushUndo(); Session.stickers = []; Session.sel = -1; renderStickers(); }
+}
+async function closeDecor() { Session.sel = -1; await refreshReview(); configReview(); show('review'); }
+
+/* ------------------------------------------------------ simpan & hasil */
+const galleryName = (r) => `Photobooth-${r.stamp || stamp(new Date(r.created))}-${r.id}.${r.mime === 'image/jpeg' ? 'jpg' : 'png'}`;
+async function saveSession() {
+  if (!Session.canvas || Session.record || Session.saving) return;
+  Session.saving = true; $('#btn-save').disabled = true; $('#decor-save').disabled = true;
   try {
+    const out = await composeFinal(Session.canvas, Session.stickers);
     const mime = S().outFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
-    const blob = await canvasToBlob(Session.canvas, mime, mime === 'image/jpeg' ? Number(S().jpegQuality) || 0.92 : undefined);
-    const thumb = await canvasToBlob(scaleCanvas(Session.canvas, 640), 'image/jpeg', 0.84);
+    const blob = await canvasToBlob(out, mime, mime === 'image/jpeg' ? Number(S().jpegQuality) || 0.92 : undefined);
+    const thumb = await canvasToBlob(scaleCanvas(out, 640), 'image/jpeg', 0.84);
     const rec = {
       id: Session.id, folder: folderName(), eventTitle: S().eventTitle, created: Date.now(), stamp: stamp(),
-      frameId: Session.frame.id, frameName: Session.frame.name, mime, size: blob.size, blob, thumb,
-      status: S().apiUrl ? 'pending' : 'local', tries: 0, nextTry: 0, fileId: '', error: '', printed: 0,
+      frameId: Session.frame.id, frameName: Session.frame.name, mime, size: blob.size, blob, thumb, stickers: Session.stickers.length,
+      status: cloudReady() ? 'pending' : 'local', tries: 0, nextTry: 0, fileId: '', error: '', printed: 0,
     };
     await DB.put('photos', rec);
     Session.record = rec; showResult(rec); Uploader.kick();
+    if (S().saveToGallery) saveToGallery(rec);
     if (S().printEnabled && S().autoPrint) setTimeout(async () => printRecord(await DB.get('photos', rec.id)), 700);
-  } catch (e) { console.error(e); toast('Gagal menyimpan foto: ' + (e.message || e), 5000); btn.disabled = false; }
+  } catch (e) {
+    console.error(e); logErr('simpan: ' + (e.message || e)); toast('Gagal menyimpan foto: ' + (e.message || e), 5000);
+    $('#btn-save').disabled = false; $('#decor-save').disabled = false;
+  } finally { Session.saving = false; }
+}
+/** Salinan ke galeri perangkat: unduhan → folder Download → tampil di aplikasi Galeri (album Download). */
+async function saveToGallery(rec) {
+  try { downloadBlob(rec.blob, galleryName(rec)); await DB.patch('photos', rec.id, (x) => { x.gallery = Date.now(); }); }
+  catch (e) { logErr('galeri: ' + (e.message || e)); }
 }
 function showResult(rec) {
   const img = $('#result-img'); if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
   const url = URL.createObjectURL(rec.thumb); img.dataset.url = url; img.src = url;
-  const cloud = !!S().apiUrl;
+  const cloud = cloudReady();
   $('#result-qr-card').hidden = !cloud;
   $('#result-title').textContent = cloud ? 'Scan untuk ambil fotomu' : 'Foto tersimpan';
   if (cloud) renderQR($('#result-qr'), guestUrl(rec.id));
   $('#result-code').textContent = fmtCode(rec.id);
-  $('#btn-print').hidden = !S().printEnabled;
+  $('#result-saved').hidden = false;
+  $('#btn-print').hidden = false; // selalu tampil; printer mati → pop-up
+  $('#btn-share').hidden = !S().showShare;
   updateResultStatus(rec); show('result'); startResultTimer();
 }
 function updateResultStatus(r) {
@@ -783,12 +1146,43 @@ function updateResultStatus(r) {
   switch (r.status) {
     case 'done': cls = 'ok'; t = 'Tersimpan di Google Drive ✓'; break;
     case 'uploading': t = 'Mengunggah ke Google Drive…'; break;
-    case 'pending': if (navigator.onLine) t = 'Menunggu giliran upload…'; else { cls = 'warn'; t = 'Offline — foto aman di tablet & diunggah otomatis saat online. QR tetap berlaku.'; } break;
+    case 'pending': if (navigator.onLine) t = 'Menunggu giliran upload…'; else { cls = 'warn'; t = 'Offline — foto aman di galeri & diunggah otomatis saat online. QR tetap berlaku.'; } break;
     case 'error': cls = 'warn'; t = 'Upload tertunda — dicoba lagi otomatis. QR tetap berlaku, buka linknya sebentar lagi.'; break;
-    case 'local': cls = 'warn'; t = 'Google Drive belum diatur — foto disimpan di tablet.'; break;
+    case 'local': cls = 'warn'; t = 'Google Drive belum diatur — foto tersimpan di galeri.'; break;
     default: t = '';
   }
   el.className = 'up-status ' + cls; el.textContent = t;
+}
+/** Bagikan dari kiosk: share sheet Android (WhatsApp, Quick Share, Bluetooth…) → fallback QR/link/unduh.
+    Sinkron sampai navigator.share() agar izin gestur sentuh tidak kedaluwarsa. */
+function shareRecord(rec) {
+  if (!rec || !rec.blob) return;
+  const link = cloudReady() ? guestUrl(rec.id) : '';
+  const title = S().eventTitle || 'Photobooth';
+  const file = new File([rec.blob], galleryName(rec), { type: rec.mime || 'image/png' });
+  if (navigator.canShare && navigator.share) {
+    let can = false; try { can = navigator.canShare({ files: [file] }); } catch (e) { can = false; }
+    if (can) {
+      navigator.share({ files: [file], title, text: link ? `Foto photobooth ${title} — ${link}` : `Foto photobooth ${title}` })
+        .catch((e) => { if (!e || e.name !== 'AbortError') { logErr('share: ' + ((e && e.message) || e)); shareFallback(rec, link); } });
+      return;
+    }
+  }
+  shareFallback(rec, link);
+}
+function shareFallback(rec, link) {
+  const actions = [];
+  if (link) {
+    actions.push({ label: 'Salin link', primary: true, fn: async (b) => {
+      try { await navigator.clipboard.writeText(link); b.textContent = 'Link disalin ✓'; } catch (e) { b.textContent = 'Gagal menyalin'; }
+      return true;
+    } });
+  }
+  actions.push({ label: 'Simpan ke galeri', primary: !link, fn: () => { downloadBlob(rec.blob, galleryName(rec)); toast('Tersimpan di galeri (folder Download)'); } });
+  actions.push({ label: 'Tutup' });
+  dialog({ icon: link ? '' : 'share', title: 'Bagikan foto', msg: link ? 'Scan QR ini dengan HP untuk menyimpan & membagikan fotomu.' : 'Perangkat ini tidak mendukung menu bagikan.',
+    html: link ? '<div class="qr dlg-qr" id="dlg-qr"></div>' : '', actions, auto: 45 });
+  if (link) renderQR($('#dlg-qr'), link);
 }
 function startResultTimer() {
   clearInterval(UI.resultTimer); let left = Number(S().idleReset) || 60; const el = $('#result-timer');
@@ -852,14 +1246,14 @@ function onSettingInput(el) {
 }
 function onSettingChanged(k) {
   if (['eventSubtitle', 'eventTitle', 'eventDate', 'footerText', 'ctaText', 'accent'].includes(k)) {
-    applyTheme(); invalidateThumbs(); $('#folder-input').placeholder = `${S().eventTitle} — ${S().eventDate}`;
+    applyTheme(); invalidateThumbs(); invalidateStickers(); $('#folder-input').placeholder = `${S().eventTitle} — ${S().eventDate}`;
   }
   if (k === 'cameraId' || k === 'camRes') Cam.start().then(() => { fillCamSelect(); });
   if (k === 'mirrorPreview' || k === 'zoom') { applyCamStyle(); $('#zoom-val').textContent = `${(Number(S().zoom) || 1).toFixed(2)}×`; }
-  if (k === 'apiUrl' || k === 'apiToken') { Settings.set('galleryUrl', ''); $('#gallery-url').textContent = ''; updateStatus(); Uploader.kick(); }
+  if (k === 'apiUrl' || k === 'apiToken') { Settings.set('galleryUrl', ''); $('#gallery-url').textContent = ''; $('#setup-box').innerHTML = ''; updateStatus(); Uploader.kick(); }
 }
 const stat = (v, l) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`;
-const STATUS_LABEL = { done: 'Drive ✓', pending: 'antre', uploading: 'upload…', error: 'gagal', local: 'lokal' };
+const STATUS_LABEL = { done: 'Drive ✓', pending: 'antre', uploading: 'upload…', error: 'gagal', local: 'galeri' };
 const PANES = {
   async event() {
     const c = await counts();
@@ -867,8 +1261,8 @@ const PANES = {
       stat(c.pending + c.local, 'antre') + stat(c.error, 'gagal') + stat(c.prints, 'dicetak') + stat(fmtBytes(c.bytes), 'ukuran');
   },
   camera() { fillCamSelect(); },
-  frames() { renderFrameList(); },
-  cloud() { renderQueueStats(); $('#gallery-url').textContent = S().galleryUrl || ''; },
+  frames() { renderFrameList(); renderStickerAdmin(); },
+  cloud() { renderQueueStats(); $('#gallery-url').textContent = S().galleryUrl || ''; $('#setup-box').innerHTML = ''; },
   gallery() { renderGallery(); },
   system() { renderSys(); },
 };
@@ -899,12 +1293,16 @@ async function renderFrameList() {
   for (const f of allFrames()) {
     const row = document.createElement('div'); row.className = 'frame-row';
     const on = !S().disabledFrames.includes(f.id);
-    row.innerHTML = `<img alt=""><div><b>${esc(f.name)}</b><div class="muted">${f.slots.length} foto · ${f.w}×${f.h}px · ${f.custom ? 'kustom' : 'bawaan'}</div></div>` +
+    const th = frameTheme(f);
+    const opts = PACKS.map((p) => `<option value="${esc(p.id)}"${p.id === th ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+    row.innerHTML = `<img alt=""><div><b>${esc(f.name)}</b><div class="muted">${f.slots.length} foto · ${f.w}×${f.h}px · ${f.custom ? 'kustom' : 'bawaan'}</div>` +
+      `<label class="muted theme-pick">Atribut disarankan <select data-theme>${opts}</select></label></div>` +
       `<label class="switch"><input type="checkbox" ${on ? 'checked' : ''}><i></i></label>` + (f.custom ? '<button class="btn ghost sm" type="button" data-del>Hapus</button>' : '<span></span>');
     $('input', row).onchange = (e) => {
       const set = new Set(S().disabledFrames); if (e.target.checked) set.delete(f.id); else set.add(f.id);
       Settings.set('disabledFrames', [...set]);
     };
+    $('[data-theme]', row).onchange = (e) => { Settings.set('frameThemes', { ...S().frameThemes, [f.id]: e.target.value }); toast(`Atribut “${e.target.selectedOptions[0].text}” muncul pertama untuk ${f.name}`); };
     const del = $('[data-del]', row);
     if (del) confirmTap(del, async () => { await DB.del('frames', f.id); overlayCache.delete(f.id); await loadCustomFrames(); invalidateThumbs(); renderFrameList(); toast('Bingkai dihapus'); });
     box.appendChild(row);
@@ -941,14 +1339,15 @@ async function testApi() {
     const r = await apiPost({ action: 'ping', folder: folderName() }, 40000);
     if (!r.ok) throw new Error(r.error === 'unauthorized' ? 'Token salah (samakan dengan Code.gs)' : r.error);
     Settings.set('galleryUrl', r.eventPublic ? r.eventUrl || '' : '');
-    out.innerHTML = `✓ Terhubung (backend v${esc(r.version || '?')}). <a href="${esc(r.eventUrl || r.rootUrl || '#')}" target="_blank" rel="noopener">Buka folder acara</a>`;
+    out.innerHTML = `✓ Terhubung (backend v${esc(r.version || '?')}). <a href="${esc(r.eventUrl || r.rootUrl || '#')}" target="_blank" rel="noopener">Buka folder acara</a>` +
+      (r.sheetUrl ? ` · <a href="${esc(r.sheetUrl)}" target="_blank" rel="noopener">Buka database (Sheet)</a>` : '');
     $('#gallery-url').textContent = S().galleryUrl || '(folder acara tidak publik)';
     Uploader.kick();
   } catch (e) { out.textContent = '✗ ' + (e.message || e); }
 }
 async function renderQueueStats() {
   const c = await counts();
-  $('#queue-stats').innerHTML = stat(c.done, 'di Drive') + stat(c.pending + (S().apiUrl ? c.local : 0), 'antre') + stat(c.error, 'gagal') +
+  $('#queue-stats').innerHTML = stat(c.done, 'di Drive') + stat(c.pending + (cloudReady() ? c.local : 0), 'antre') + stat(c.error, 'gagal') +
     (c.lastError ? `<div class="stat" style="grid-column:1/-1"><span>Error terakhir</span><div class="mono">${esc(c.lastError)}</div></div>` : '');
 }
 async function retryAll() {
@@ -968,7 +1367,6 @@ async function renderGallery() {
     b.onclick = () => openPhotoSheet(r.id); box.appendChild(b);
   }
 }
-const fileName = (r) => `${r.id}_${r.stamp || stamp(new Date(r.created))}.${r.mime === 'image/jpeg' ? 'jpg' : 'png'}`;
 async function openPhotoSheet(id) {
   const r = await DB.get('photos', id); if (!r) return;
   const u = URL.createObjectURL(r.thumb); $('#sheet').dataset.url = u;
@@ -976,28 +1374,87 @@ async function openPhotoSheet(id) {
     `<div style="display:flex;gap:18px;flex-wrap:wrap"><img src="${u}" alt="" style="width:200px;border-radius:8px;box-shadow:var(--shadow)">` +
     `<div style="flex:1;min-width:200px"><h3 style="margin:0 0 6px;font-family:var(--serif);font-size:26px">Kode ${fmtCode(r.id)}</h3>` +
     `<p class="muted">${fmtDT(r.created)} · ${esc(r.frameName || r.frameId)} · ${fmtBytes(r.size)}<br>Status: ${STATUS_LABEL[r.status] || r.status}${r.error ? ' — ' + esc(r.error) : ''}<br>Dicetak: ${r.printed || 0}×</p>` +
-    (S().apiUrl ? '<div class="qr" id="sheet-qr" style="width:170px"></div>' : '') + '</div></div>' +
-    '<p class="inline" style="margin-top:16px"><button class="btn primary sm" type="button" data-x="print">Cetak</button><button class="btn ghost sm" type="button" data-x="dl">Download</button>' +
+    (cloudReady() ? '<div class="qr" id="sheet-qr" style="width:170px"></div>' : '') + '</div></div>' +
+    '<p class="inline" style="margin-top:16px"><button class="btn primary sm" type="button" data-x="print">Cetak</button><button class="btn ghost sm" type="button" data-x="dl">Simpan ke galeri perangkat</button>' +
     '<button class="btn ghost sm" type="button" data-x="up">Upload ulang</button><button class="btn danger sm" type="button" data-x="del">Hapus</button></p>';
-  if (S().apiUrl) renderQR($('#sheet-qr'), guestUrl(r.id));
+  if (cloudReady()) renderQR($('#sheet-qr'), guestUrl(r.id));
   $('#sheet').hidden = false;
   const body = $('#sheet-body');
   $('[data-x=print]', body).onclick = async () => printRecord(await DB.get('photos', id));
-  $('[data-x=dl]', body).onclick = () => downloadBlob(r.blob, fileName(r));
+  $('[data-x=dl]', body).onclick = () => downloadBlob(r.blob, galleryName(r));
   $('[data-x=up]', body).onclick = async () => { await DB.patch('photos', id, (x) => { x.status = 'pending'; x.nextTry = 0; }); Uploader.kick(); toast('Masuk antrean upload'); closeSheet(); renderGallery(); };
-  confirmTap($('[data-x=del]', body), async () => { await DB.del('photos', id); closeSheet(); renderGallery(); updateStatus(); toast('Foto dihapus dari tablet'); });
+  confirmTap($('[data-x=del]', body), async () => { await DB.del('photos', id); closeSheet(); renderGallery(); updateStatus(); toast('Foto dihapus dari galeri'); });
 }
 function closeSheet() { const sh = $('#sheet'); sh.hidden = true; if (sh.dataset.url) { URL.revokeObjectURL(sh.dataset.url); sh.dataset.url = ''; } }
 async function downloadAll() {
   const all = (await DB.all('photos')).sort((a, b) => a.created - b.created);
   if (!all.length) { toast('Belum ada foto'); return; }
-  toast(`Mengunduh ${all.length} foto… izinkan “unduh banyak file” bila diminta`, 6000);
-  for (const r of all) { downloadBlob(r.blob, fileName(r)); await sleep(450); }
+  toast(`Menyimpan ${all.length} foto ke galeri perangkat… izinkan “unduh banyak file” bila diminta`, 6000);
+  for (const r of all) { downloadBlob(r.blob, galleryName(r)); await sleep(450); }
 }
 async function purgeDone() {
   const all = await DB.all('photos'); let n = 0;
   for (const r of all) if (r.status === 'done') { await DB.del('photos', r.id); n++; }
-  toast(`${n} salinan lokal dihapus`); renderGallery(); updateStatus();
+  toast(`${n} foto dihapus dari galeri aplikasi (sudah aman di Drive)`); renderGallery(); updateStatus();
+}
+let stkAdminUrls = [];
+async function renderStickerAdmin() {
+  stkAdminUrls.forEach((u) => URL.revokeObjectURL(u)); stkAdminUrls = [];
+  const box = $('#sticker-list'); box.innerHTML = CUSTOM_STK.length ? '' : '<p class="muted">Belum ada atribut kustom.</p>';
+  for (const it of CUSTOM_STK) {
+    const d = document.createElement('div'); d.className = 'stk-admin-item';
+    const u = URL.createObjectURL(it.blob); stkAdminUrls.push(u);
+    d.innerHTML = `<img src="${u}" alt=""><span>${esc(it.name)}</span><button class="btn ghost sm" type="button">Hapus</button>`;
+    confirmTap($('button', d), async () => { await DB.del('stickers', it.id); await loadCustomStickers(); invalidateStickers(); renderStickerAdmin(); toast('Atribut dihapus'); });
+    box.appendChild(d);
+  }
+  const pk = $('#sticker-packs'); if (pk) pk.textContent = availablePacks().map((p) => `${p.name} (${stickersOf(p.id).length})`).join(' · ');
+}
+async function handleStickerFiles(e) {
+  const files = Array.from((e.target.files) || []); e.target.value = '';
+  let n = 0;
+  for (const file of files.slice(0, 20)) {
+    try { await DB.put('stickers', await importSticker(file)); n++; } catch (err) { toast(`${file.name}: ${err.message || err}`, 5000); }
+  }
+  await loadCustomStickers(); invalidateStickers(); renderStickerAdmin();
+  if (n) toast(`${n} atribut kustom ditambahkan (tab “Kustom”)`);
+}
+/* ---- link setup sekali-ketuk: #setup=<base64url {"u":URL,"t":TOKEN}> (token tidak pernah ada di repo) ---- */
+const b64url = (str) => btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64url = (s) => { const b = s.replace(/-/g, '+').replace(/_/g, '/'); return atob(b + '='.repeat((4 - (b.length % 4)) % 4)); };
+const API_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]{20,140}\/exec$/;
+const isLocalHost = () => /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+function setupLink() {
+  const base = ((S().guestBaseUrl || '').trim() || location.origin + location.pathname).replace(/index\.html?$/, '').replace(/[?#].*$/, '');
+  return `${base}#setup=${b64url(JSON.stringify({ u: (S().apiUrl || '').trim(), t: (S().apiToken || '').trim() }))}`;
+}
+function showSetupQR() {
+  const box = $('#setup-box');
+  if (!cloudReady()) { box.innerHTML = '<p class="muted">Isi URL Web App & Token dulu.</p>'; return; }
+  const link = setupLink();
+  box.innerHTML = '<div class="inline" style="align-items:flex-start"><div class="qr" id="setup-qr" style="width:180px"></div>' +
+    `<div style="flex:1;min-width:220px"><p class="muted">Scan dengan kamera perangkat lain (atau buka link ini di Chrome-nya) → langsung terhubung ke Drive.<br><b>Rahasia:</b> berisi token — jangan dibagikan / diposting.</p><p class="mono">${esc(link)}</p></div></div>`;
+  renderQR($('#setup-qr'), link);
+}
+/** dipanggil saat start: simpan URL & token dari hash, lalu hapus hash dari address bar */
+function applySetupLink() {
+  const m = /^#setup=([\w-]{10,600})$/.exec(location.hash || ''); if (!m) return false;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; }
+  let cfg = null; try { cfg = JSON.parse(unb64url(m[1])); } catch (e) { cfg = null; }
+  const u = cfg && typeof cfg.u === 'string' ? cfg.u.trim() : '', t = cfg && typeof cfg.t === 'string' ? cfg.t.trim() : '';
+  const okU = !u || API_URL_RE.test(u) || (isLocalHost() && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(u));
+  if (!okU || !/^[\w-]{8,64}$/.test(t)) { setTimeout(() => toast('Link setup tidak valid', 6000), 600); return false; }
+  if (u) Settings.set('apiUrl', u);
+  Settings.set('apiToken', t); Settings.set('galleryUrl', '');
+  return true;
+}
+async function pingAfterSetup() {
+  toast('Menghubungkan ke Google Drive…', 6000);
+  try {
+    const r = await apiPost({ action: 'ping' }, 40000); // tanpa folder → tidak membuat folder acara "Nama & Nama" kosong
+    if (!r || !r.ok) throw new Error(r && r.error === 'unauthorized' ? 'token ditolak' : (r && r.error) || 'gagal');
+    toast('✓ Tersambung ke Google Drive — foto otomatis masuk Drive & database', 6000); Uploader.kick(); updateStatus();
+  } catch (e) { toast('✗ Belum tersambung: ' + (e.message || e) + ' — cek Admin › Drive & QR', 8000); }
 }
 async function renderSys() {
   let est = {}; let persisted = false;
@@ -1047,15 +1504,17 @@ async function initGuest(params) {
   }
   $('#g-loader').hidden = true; msg.textContent = 'Foto belum tersedia. Coba buka link ini lagi nanti.';
 }
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function showGuestPhoto(r, api, id) {
   if (r.eventTitle) { $('#g-title').textContent = r.eventTitle; document.title = `${r.eventTitle} · Photobooth`; }
-  let filePromise = null;
+  let filePromise = null, fileReady = null;
   const getFile = () => {
     if (!filePromise) {
       filePromise = apiGet(api, { action: 'img', s: id }, 90000).then((d) => {
         if (!d || !d.ok || !d.data) throw new Error((d && d.error) || 'gagal');
         const blob = b64ToBlob(d.data, d.mime || 'image/png');
-        return new File([blob], d.name || `${id}.png`, { type: d.mime || 'image/png' });
+        fileReady = new File([blob], d.name || `${id}.png`, { type: d.mime || 'image/png' });
+        return fileReady;
       });
       filePromise.catch(() => { filePromise = null; });
     }
@@ -1064,25 +1523,38 @@ function showGuestPhoto(r, api, id) {
   const img = $('#g-img'); let fellBack = false;
   img.onload = () => { $('#g-loader').hidden = true; img.hidden = false; };
   img.onerror = async () => {
-    if (fellBack) { $('#g-loader').hidden = true; $('#g-msg').textContent = 'Pratinjau gagal dimuat — pakai tombol Download.'; return; }
+    if (fellBack) { $('#g-loader').hidden = true; $('#g-msg').textContent = 'Pratinjau gagal dimuat — pakai tombol Simpan.'; return; }
     fellBack = true;
     try { const f = await getFile(); img.src = URL.createObjectURL(f); } catch (e) { img.onerror(); }
   };
   img.src = `https://drive.google.com/thumbnail?id=${encodeURIComponent(r.fileId)}&sz=w2000`;
-  $('#g-dl').href = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(r.fileId)}`;
   $('#g-open').href = `https://drive.google.com/file/d/${encodeURIComponent(r.fileId)}/view`;
   $('#g-msg').textContent = 'Fotomu sudah siap!'; $('#g-actions').hidden = false;
-  getFile().catch(() => {}); // siapkan di latar → tombol Simpan langsung responsif
-  $('#g-share').onclick = async () => {
-    const b = $('#g-share'); const old = b.textContent; b.disabled = true; b.textContent = 'Menyiapkan…';
-    try {
-      const file = await getFile();
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: r.eventTitle || 'Photobooth' }); }
-        catch (e) { if (e && e.name === 'NotAllowedError') downloadBlob(file, file.name); else if (!e || e.name !== 'AbortError') throw e; }
-      } else downloadBlob(file, file.name);
-    } catch (e) { toast('Gagal menyiapkan file — pakai tombol Download'); }
+  $('#g-hint').textContent = isIOS() ? 'iPhone: “Simpan ke Galeri” → pilih “Simpan Gambar”. Bisa juga tekan lama foto.' : 'Android: foto masuk ke aplikasi Galeri (album Download).';
+  getFile().catch(() => {}); // siapkan di latar → tombol langsung responsif
+  const title = r.eventTitle || 'Photobooth';
+  const canShareFile = (f) => { try { return !!(navigator.canShare && navigator.share && navigator.canShare({ files: [f] })); } catch (e) { return false; } };
+  /** file belum siap → tunggu, lalu minta ketuk ulang (share butuh gestur sentuh yang masih "segar") */
+  const ensure = async (b) => {
+    if (fileReady) return fileReady;
+    const old = b.textContent; b.disabled = true; b.textContent = 'Menyiapkan…';
+    try { await getFile(); toast('Foto siap — ketuk sekali lagi'); } catch (e) { toast('Gagal menyiapkan foto — coba lagi / Buka di Google Drive', 5000); }
     finally { b.disabled = false; b.textContent = old; }
+    return null;
+  };
+  $('#g-save').onclick = async () => {
+    const f = await ensure($('#g-save')); if (!f) return;
+    if (isIOS() && canShareFile(f)) {
+      navigator.share({ files: [f], title }).catch((e) => { if (e && e.name === 'NotAllowedError') downloadBlob(f, f.name); });
+      return;
+    }
+    downloadBlob(f, f.name); toast('Tersimpan — cek aplikasi Galeri (album Download)', 5000);
+  };
+  $('#g-share').onclick = async () => {
+    const f = await ensure($('#g-share')); if (!f) return;
+    if (canShareFile(f)) { navigator.share({ files: [f], title, text: `Foto photobooth ${title}` }).catch(() => {}); return; }
+    if (navigator.share) { navigator.share({ title, url: location.href }).catch(() => {}); return; }
+    try { await navigator.clipboard.writeText(location.href); toast('Link foto disalin'); } catch (e) { toast('Salin link dari address bar'); }
   };
 }
 
@@ -1107,7 +1579,7 @@ function registerSW() {
 async function fontsReady() {
   if (!document.fonts || !document.fonts.load) return;
   try {
-    await withTimeout(Promise.all(['400 48px "Great Vibes"', '600 40px "Cormorant Garamond"', '500 40px "Cormorant Garamond"', 'italic 400 30px "Cormorant Garamond"', '500 20px "Jost"']
+    await withTimeout(Promise.all(['400 48px "Great Vibes"', '600 40px "Cormorant Garamond"', '500 40px "Cormorant Garamond"', 'italic 400 30px "Cormorant Garamond"', '500 20px "Jost"', '600 20px "Jost"']
       .map((f) => document.fonts.load(f))), 4000);
   } catch (e) { /* lanjut dengan font cadangan */ }
 }
@@ -1121,11 +1593,28 @@ function bindEvents() {
   });
   $('#btn-shoot').addEventListener('click', runShots);
   $('#btn-retake').addEventListener('click', retake);
-  $('#btn-save').addEventListener('click', saveSession);
+  $('#btn-save').addEventListener('click', reviewNext);
+  $('#btn-decor').addEventListener('click', openDecor);
   $('#btn-done').addEventListener('click', goHome);
-  $('#btn-print').addEventListener('click', async () => { if (Session.record) printRecord(await DB.get('photos', Session.record.id)); });
+  $('#btn-print').addEventListener('click', async () => { if (Session.record) printOrWarn(await DB.get('photos', Session.record.id)); });
+  $('#btn-share').addEventListener('click', () => shareRecord(Session.record));
+  // halaman atribut
+  const stage = $('#decor-stage');
+  stage.addEventListener('pointerdown', decorDown);
+  stage.addEventListener('pointermove', decorMove);
+  stage.addEventListener('pointerup', decorUp);
+  stage.addEventListener('pointercancel', decorUp);
+  stage.addEventListener('contextmenu', (e) => e.preventDefault());
+  $('#decor-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-pack]'); if (b) { Decor.pack = b.dataset.pack; renderTray(); } });
+  $('#decor-tray').addEventListener('click', (e) => { const b = e.target.closest('[data-stk]'); if (b) addSticker(b.dataset.stk); });
+  $('#decor-tools').addEventListener('click', (e) => { const b = e.target.closest('[data-tool]'); if (b && !b.disabled) decorTool(b.dataset.tool); });
+  $('#decor-back').addEventListener('click', closeDecor);
+  $('#decor-save').addEventListener('click', saveSession);
   document.addEventListener('pointerdown', () => { if (UI.screen === 'result' && $('#admin').hidden) startResultTimer(); else armIdle(); }, { capture: true });
-  addEventListener('resize', () => { if (UI.screen === 'capture' && Session.frame) setStageFor(Math.min(Session.shots.length, Session.frame.slots.length - 1)); });
+  addEventListener('resize', () => {
+    if (UI.screen === 'capture' && Session.frame) setStageFor(Math.min(Session.shots.length, Session.frame.slots.length - 1));
+    if (UI.screen === 'decor') { layoutDecor(); renderStickers(); }
+  });
   addEventListener('keydown', (e) => { if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) Admin.askPin(); });
   // admin
   $('#admin-nav').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) Admin.tab(b.dataset.tab); });
@@ -1134,6 +1623,8 @@ function bindEvents() {
   $('#cam-refresh').addEventListener('click', () => { Cam.start().then(fillCamSelect); });
   $('#cam-test-btn').addEventListener('click', camTest);
   $('#frame-file').addEventListener('change', handleFrameFile);
+  $('#sticker-file').addEventListener('change', handleStickerFiles);
+  $('#setup-show').addEventListener('click', showSetupQR);
   $('#token-gen').addEventListener('click', () => { const t = uid(24); Settings.set('apiToken', t); fillSettings(); toast('Token baru — salin juga ke TOKEN di Code.gs', 4500); });
   $('#api-test').addEventListener('click', testApi);
   $('#retry-all').addEventListener('click', retryAll);
@@ -1158,15 +1649,17 @@ async function main() {
   Settings.load(); applyTheme(); $('#ver').textContent = 'v' + VERSION;
   const params = new URLSearchParams(location.search);
   if (params.has('s')) { await fontsReady(); initGuest(params); return; }
+  const fromSetup = applySetupLink();
   if (typeof qrcode !== 'function') { logErr('vendor/qrcode.js tidak termuat'); toast('vendor/qrcode.js tidak ditemukan — QR tidak bisa dibuat. Upload ulang folder vendor/.', 8000); }
   if (location.protocol === 'file:') setTimeout(() => toast('Mode file lokal — hanya untuk uji tampilan. QR tamu & mode offline butuh link HTTPS (Vercel).', 8000), 1200);
   registerSW();
   try { await DB.open(); } catch (e) { console.error(e); toast('Penyimpanan lokal tidak tersedia', 6000); }
-  await loadCustomFrames();
+  await loadCustomFrames(); await loadCustomStickers();
   buildKeypad(); bindEvents(); applyCamStyle();
   await fontsReady();
   show('attract'); renderAttract(); updateStatus();
   Uploader.on(onUploadEvent); Uploader.start();
+  if (fromSetup) pingAfterSetup();
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* noop */ }
   WakeLock.init();
   Cam.start();

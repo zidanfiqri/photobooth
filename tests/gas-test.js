@@ -30,7 +30,8 @@ class MockSheet { constructor(ss, name) { this.ss = ss; this.name = name; this.r
 class MockSS { constructor(name) { this.id = 'ss' + (++ssCount); this.name = name; this.sheets = [new MockSheet(this, 'Sheet1')]; sheets.push(this);
     const f = new GFile({ name, type: 'application/vnd.google-apps.spreadsheet', bytes: [] }, myDrive); f.id = this.id; files.push(f); }
   getId() { return this.id; } getUrl() { return 'https://docs.google.com/spreadsheets/d/' + this.id; }
-  getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; } getSheets() { return this.sheets; } }
+  getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; } getSheets() { return this.sheets; }
+  setSpreadsheetTimeZone(tz) { this.tz = tz; } }
 GFile.prototype.moveTo = function (folder) { this.folder = folder; return this; };
 const sandbox = {
   console,
@@ -72,6 +73,7 @@ r = post({ token: T, action: 'ping', folder: 'Rina & Dimas — 20 · 07 · 2027'
 ok('ping again reuses folders', folders.length === 3, 'folders=' + folders.map((f) => f.name).join(' | '));
 ok('ping creates database sheet once, inside Photobooth folder', sheets.length === 1 && /spreadsheets\/d\/ss1/.test(r.sheetUrl) && files.find((f) => f.id === 'ss1').folder.name === 'Photobooth', r.sheetUrl);
 const dbRows = () => sheets[0].getSheetByName('Foto').rows;
+ok('database sheet uses CONFIG.TIME_ZONE (Asia/Jakarta)', sheets[0].tz === 'Asia/Jakarta', String(sheets[0].tz));
 ok('database has header row', JSON.stringify(dbRows()[0]) === JSON.stringify(['Waktu', 'Kode', 'Acara', 'Folder', 'Bingkai', 'Nama file', 'Link Drive', 'Ukuran (KB)']));
 r = post({ token: T, action: 'upload', id: 'ABCDE12345', folder: 'Rina & Dimas — 20 · 07 · 2027', eventTitle: 'Rina & Dimas', frame: 'Photo Strip', stamp: '20270720-101010', mime: 'image/png', data: png });
 const f1 = files.find((f) => f.getName().startsWith('ABCDE12345'));

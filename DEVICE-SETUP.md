@@ -43,12 +43,15 @@ Nama menu bisa sedikit beda antar versi HyperOS/MIUI — pakai kolom **cari** di
 1. Buka **https://photobooth-wine-iota.vercel.app** (URL produksi) di Chrome → muncul izin kamera → **Izinkan**.
 2. Chrome ⋮ → **Install app / Add to Home screen** → buka dari ikon di home screen (layar penuh, tanpa address bar).
 3. Buka **Admin**: ketuk **pojok kiri atas 5×** → PIN `1234`.
-4. **Drive & QR:** tempel *Web App URL* + *Token* → **Tes koneksi** harus ✓ dan tautan folder bisa dibuka.
+4. **Drive & QR:** buka **link setup** `https://photobooth-wine-iota.vercel.app/#setup=…` sekali di Chrome tablet (URL & token terisi otomatis, toast “✓ Tersambung ke Google Drive”) — atau tempel *Web App URL* + *Token* manual → **Tes koneksi** harus ✓, tautan folder & database bisa dibuka. Link setup = **rahasia** (berisi token); perangkat lain bisa scan *QR setup* di menu yang sama.
 5. **Acara:** teks atas, nama, tanggal, teks penutup, warna aksen, nama folder Drive.
-6. **Bingkai:** nyalakan yang dipakai; upload bingkai sendiri bila ada (README › Fitur).
-7. **Sesi:** hitung mundur 3–5 dtk [saran], ulang sesi 1×, kembali ke awal 60 dtk, format **PNG** (atau **JPG** kalau upload lambat).
+6. **Bingkai:** nyalakan yang dipakai; pilih *Atribut disarankan* per bingkai; upload bingkai / atribut kustom (PNG transparan) bila ada.
+7. **Sesi:** hitung mundur 3–5 dtk [saran], ulang sesi 1×, kembali ke awal 60 dtk, format **PNG** (atau **JPG** kalau upload lambat). Atribut: *Tombol di layar review* (disarankan). *Simpan otomatis ke galeri* & *Tombol Bagikan*: nyala.
 8. **Sistem:** **ganti PIN**.
 9. **Uji:** 1 sesi penuh → scan QR pakai **HP lain dengan data seluler** (bukan Wi-Fi yang sama) → foto harus muncul.
+10. **Galeri:** sesi pertama, Chrome bisa bertanya “izinkan download banyak file?” → **Izinkan**. Cek aplikasi **Galeri › album Download**: foto harus ada [uji di Pad 5].
+    Jika notifikasi/snackbar unduhan mengganggu tamu, matikan *Simpan otomatis ke galeri* — foto tetap aman di galeri aplikasi & Drive.
+11. **Bagikan:** share sheet memakai aplikasi di tablet (WhatsApp, Quick Share, Bluetooth). Jangan login WhatsApp pribadi di tablet kiosk, atau matikan *Tombol Bagikan*.
 
 ### Mode kiosk (hari H)
 1. Settings → cari **"pin"** → aktifkan *Screen pinning / Sematkan aplikasi*.
@@ -56,7 +59,7 @@ Nama menu bisa sedikit beda antar versi HyperOS/MIUI — pakai kolom **cari** di
 3. Cara keluar mengikuti petunjuk yang muncul di layar saat menyematkan — **coba sekali saat gladi**.
 4. Colok charger terus selama acara.
 
-**Titik status (pojok kanan atas):** hijau = kamera & Drive OK · kuning = ada antrean upload · merah = offline/gagal (foto tetap aman di tablet).
+**Titik status (pojok kanan atas):** hijau = kamera & Drive OK · kuning = ada antrean upload · merah = offline/gagal (foto tetap aman di galeri).
 
 ---
 
@@ -95,8 +98,9 @@ Mode webcam Pocket 3 resmi untuk **komputer** (USB-C, UVC 1080p). Di Android, ka
 2. **Wi-Fi:** sambungkan printer ke **Wi-Fi yang sama dengan tablet** (Wi-Fi venue / hotspot).
    ⚠️ Jangan sambungkan tablet langsung ke Wi-Fi printer (mode koneksi langsung): Pad 5 hanya punya Wi-Fi, jadi tablet akan **kehilangan internet** → upload & QR berhenti.
 3. Tablet: pasang **Mopria Print Service** dari Play Store → aktifkan.
-4. Aplikasi: Admin › **Cetak** → *Aktifkan cetak* → (opsional) *Cetak otomatis* → *Maks cetak per sesi*.
-5. **Tes cetak (foto terakhir)** → di dialog Android: pilih **Canon SELPHY CP1500**, ukuran kertas **Postcard (100×148 mm)** → Cetak.
+4. **Tes cetak (foto terakhir)** (Admin › Cetak) → di dialog Android: pilih **Canon SELPHY CP1500**, ukuran kertas **Postcard (100×148 mm)** → Cetak.
+5. Berhasil → nyalakan *Printer tersambung* → (opsional) *Cetak otomatis* → *Maks cetak per sesi*.
+   Browser tidak bisa mendeteksi printer: selama sakelar ini mati (atau printer dicabut — matikan sakelarnya), tamu yang menekan **Cetak** melihat pop-up **“Printer tidak tersambung”**.
 6. Saat acara: setiap cetak muncul dialog Android → tamu/operator tekan **Cetak**.
 7. Kecepatan ±41 detik per lembar → saat ramai akan antre; siapkan beberapa paket kertas.
 8. **Photo Strip** dicetak 2 strip per lembar → siapkan gunting/pemotong (1 untuk tamu, 1 untuk buku tamu).
@@ -119,7 +123,7 @@ Mode webcam Pocket 3 resmi untuk **komputer** (USB-C, UVC 1080p). Di Android, ka
 ## 7. Jaringan
 - Pad 5 hanya Wi-Fi → wajib Wi-Fi venue atau **hotspot HP** (siapkan cadangan).
 - Upload lambat → ganti format ke **JPG** (Admin › Sesi). Kuota yang dibutuhkan: [Fill manually — ukuran file × jumlah sesi, cek di Admin › Acara › Statistik saat gladi].
-- Internet putus: aplikasi tetap jalan, foto aman di tablet, upload menyusul otomatis, QR tetap berlaku.
+- Internet putus: aplikasi tetap jalan, foto tetap tersimpan di galeri, upload menyusul otomatis, QR tetap berlaku.
 
 ---
 
@@ -145,8 +149,8 @@ Mode webcam Pocket 3 resmi untuk **komputer** (USB-C, UVC 1080p). Di Android, ka
 
 **Setelah acara**
 - [ ] Admin › Drive & QR: **antre = 0**
-- [ ] Admin › Galeri › **Download semua** (cadangan)
-- [ ] Admin › Galeri › **Hapus salinan yang sudah di Drive**
+- [ ] Admin › Galeri › **Simpan semua ke galeri perangkat** (cadangan)
+- [ ] Admin › Galeri › **Hapus yang sudah di Drive**
 - [ ] (Opsional) bagikan link folder Drive acara ke pengantin/klien
 
 ## 9. Masalah umum
@@ -156,6 +160,8 @@ Mode webcam Pocket 3 resmi untuk **komputer** (USB-C, UVC 1080p). Di Android, ka
 | Pocket 3 tidak muncul di daftar | Pakai kabel data; pilih *Webcam* di Pocket 3; kalau tetap tidak muncul → mode A atau C |
 | Titik merah / "Upload tertunda" | Cek internet; foto tetap aman; Admin › Drive & QR › **Upload ulang sekarang** |
 | Dialog cetak tidak ada printer | Tablet & printer harus di Wi-Fi yang sama; Mopria aktif |
+| Tamu lihat “Printer tidak tersambung” | Sakelar Admin › Cetak › *Printer tersambung* mati — nyalakan setelah tes cetak berhasil |
+| Foto tidak ada di Galeri | Album **Download**; Chrome › gembok › Izin situs › *Download otomatis*: Izinkan |
 | Hasil cetak terpotong / ukuran salah | Di dialog cetak pilih ukuran **Postcard**; Admin › Cetak › ukuran kertas |
 | Tamu bisa keluar dari aplikasi | Aktifkan screen pinning (§2) |
 | Perlu diagnosa | Admin › Sistem › **Log error** — kirim isinya |

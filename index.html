@@ -143,6 +143,9 @@ video.cam{transform:scale(var(--zoom,1))}
 .up-status{font-size:15px;color:var(--ink-2);max-width:380px;min-height:22px}
 .up-status.ok{color:var(--ok)}.up-status.warn{color:var(--warn)}.up-status.bad{color:var(--bad)}
 .auto-reset{font-size:13px;color:var(--muted)}
+.saved-note{font-size:15px;color:var(--ok);display:flex;align-items:center;gap:6px}
+.btn .ic{width:20px;height:20px;display:inline-block}
+.btn .ic svg{width:100%;height:100%;display:block}
 @media (orientation:portrait){
   .result{flex-direction:column;gap:22px}
   .result-photo img{max-height:40vh;max-width:80vw}
@@ -221,6 +224,11 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
 .frame-row{display:grid;grid-template-columns:70px 1fr auto auto;gap:14px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
 .frame-row img{width:70px;height:90px;object-fit:contain}
 .frame-row b{font-weight:600}
+.theme-pick{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.theme-pick select{padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#fff;font:inherit;font-size:13.5px}
+.stk-admin{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:10px}
+.stk-admin-item{background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12.5px;text-align:center}
+.stk-admin-item img{width:84px;height:84px;object-fit:contain;background:repeating-conic-gradient(#f1ece4 0 25%,#fff 0 50%) 0 0/16px 16px;border-radius:8px}
 .gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
 .gal button{border:0;background:#fff;border-radius:12px;padding:6px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .gal img{width:100%;aspect-ratio:2/3;object-fit:contain;display:block}
@@ -250,6 +258,52 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
 .boot-card code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:14px}
 .boot-card ul{padding-left:20px;margin:12px 0 0}
 #err-log{white-space:pre-wrap;max-height:220px;overflow:auto;background:var(--bg);border-radius:12px;padding:10px 12px;margin:10px 0 0}
+
+/* ---------- halaman atribut (stiker) ---------- */
+#scr-decor{justify-content:flex-start;gap:12px;padding-top:max(14px,env(safe-area-inset-top))}
+#scr-decor .topbar{grid-template-columns:1fr auto 1fr}
+.decor-count{justify-self:end;font-size:14px;color:var(--muted);padding-right:6px}
+.decor-main{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;align-items:center;gap:16px}
+.decor-stage{position:relative;flex:none;touch-action:none;background:#fff;border-radius:6px;box-shadow:var(--shadow)}
+.decor-stage>img{display:block;width:100%;height:100%;border-radius:6px;pointer-events:none;-webkit-user-drag:none}
+.decor-layer{position:absolute;inset:0;overflow:hidden;border-radius:6px}
+.stk{position:absolute;touch-action:none;cursor:grab}
+.stk>img{display:block;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.18))}
+.stk.sel{outline:2px dashed var(--accent);outline-offset:5px}
+.stk-x,.stk-h{position:absolute;width:38px;height:38px;border-radius:50%;border:2px solid #fff;display:none;place-items:center;
+  font-size:18px;line-height:1;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.25);padding:0}
+.stk.sel .stk-x,.stk.sel .stk-h{display:grid}
+.stk-x{left:-24px;top:-24px;background:var(--bad)}
+.stk-h{right:-24px;bottom:-24px;background:var(--accent);cursor:nwse-resize}
+.decor-side{width:min(760px,100%);display:flex;flex-direction:column;align-items:center;gap:12px}
+.decor-tabs{display:flex;gap:8px;overflow-x:auto;max-width:100%;padding:2px 2px 4px;scrollbar-width:none}
+.decor-tabs button{flex:none;border:1.5px solid var(--line);background:rgba(255,255,255,.7);border-radius:999px;padding:10px 18px;font-size:16px;white-space:nowrap}
+.decor-tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.decor-tabs small{margin-left:6px;font-size:11px;opacity:.85;letter-spacing:.04em}
+.decor-tray{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,clamp(76px,9.6vmin,100px));grid-auto-columns:clamp(76px,9.6vmin,100px);
+  gap:10px;overflow-x:auto;max-width:100%;padding:4px 4px 8px}
+.decor-tray button{position:relative;border:0;background:#fff;border-radius:16px;padding:0;box-shadow:0 4px 14px -8px rgba(0,0,0,.35);min-width:0;min-height:0;overflow:hidden}
+.decor-tray button:active{transform:scale(.94)}
+.decor-tray img{position:absolute;inset:9px;width:calc(100% - 18px);height:calc(100% - 18px);object-fit:contain;pointer-events:none}
+.decor-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.decor-hint{font-size:13px;color:var(--muted);margin:0;text-align:center;max-width:520px}
+@media (orientation:landscape) and (min-aspect-ratio:21/20){
+  .decor-main{flex-direction:row;justify-content:center;align-items:center;gap:34px}
+  .decor-side{width:min(420px,40vw)}
+  .decor-tabs{flex-wrap:wrap;justify-content:center}
+  .decor-tray{grid-auto-flow:row;grid-template-rows:none;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));grid-auto-columns:auto;
+    overflow-x:hidden;overflow-y:auto;max-height:42vh;width:100%}
+  .decor-tray button{aspect-ratio:1}
+}
+
+/* ---------- pop-up ---------- */
+.dialog-box{background:var(--paper);border-radius:26px;padding:28px 26px 22px;box-shadow:var(--shadow);width:min(460px,100%);text-align:center}
+.dlg-icon{width:64px;height:64px;margin:0 auto 8px;color:var(--accent)}
+.dlg-icon svg{width:100%;height:100%}
+.dialog-box h3{font-family:var(--serif);font-size:30px;margin:0 0 8px;font-weight:600}
+.dialog-box p{color:var(--ink-2);margin:0 0 18px;line-height:1.5;font-size:17px}
+.dlg-qr{width:220px;margin:0 auto 18px;background:#fff;padding:12px;border-radius:16px;box-shadow:var(--shadow)}
+.dialog-box .row-actions{gap:12px}
 
 /* ---------- print ---------- */
 #print-area{display:none}
@@ -315,7 +369,28 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
   <div class="review-wrap"><img id="review-img" alt="Hasil foto"></div>
   <div class="row-actions">
     <button class="btn ghost" id="btn-retake">Ulangi</button>
+    <button class="btn ghost" id="btn-decor"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1 2.1.9-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.9z" opacity=".7"/></svg></span><span class="lbl">Tambah atribut</span></button>
     <button class="btn primary xl" id="btn-save">Simpan</button>
+  </div>
+</section>
+
+<!-- 4b. Tambah atribut (stiker / karakter / ilustrasi) -->
+<section id="scr-decor" class="screen">
+  <div class="topbar"><button class="back" id="decor-back" type="button">‹ Kembali</button><h2 class="title">Tambah atribut</h2><span class="decor-count" id="decor-count"></span></div>
+  <div class="decor-main">
+    <div class="decor-stage" id="decor-stage"><img id="decor-base" alt=""><div class="decor-layer" id="decor-layer"></div></div>
+    <div class="decor-side" id="decor-side">
+      <div class="decor-tabs" id="decor-tabs"></div>
+      <div class="decor-tray" id="decor-tray"></div>
+      <div class="decor-tools" id="decor-tools">
+        <button class="btn ghost sm" type="button" data-tool="undo" id="decor-undo">↶ Urungkan</button>
+        <button class="btn ghost sm" type="button" data-tool="flip" id="decor-flip">⇋ Balik</button>
+        <button class="btn ghost sm" type="button" data-tool="del" id="decor-del">Hapus</button>
+        <button class="btn ghost sm" type="button" data-tool="clear" id="decor-clear">Hapus semua</button>
+      </div>
+      <p class="decor-hint">Ketuk atribut untuk menambah · geser untuk memindah · cubit 2 jari atau tarik ↻ untuk ukuran &amp; putar</p>
+      <button class="btn primary xl" id="decor-save" type="button">Simpan</button>
+    </div>
   </div>
 </section>
 
@@ -327,10 +402,12 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
       <h2 class="title" id="result-title">Scan untuk ambil fotomu</h2>
       <div class="qr-card" id="result-qr-card"><div class="qr" id="result-qr"></div></div>
       <div class="code">KODE <b id="result-code"></b></div>
+      <div class="saved-note" id="result-saved" hidden>✓ Tersimpan di galeri</div>
       <div class="up-status" id="result-status"></div>
       <div class="row-actions">
-        <button class="btn ghost" id="btn-print" hidden>Cetak</button>
-        <button class="btn primary" id="btn-done">Selesai</button>
+        <button class="btn ghost" id="btn-print" type="button"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3.5h10V8"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v6.5H7z"/></svg></span>Cetak</button>
+        <button class="btn ghost" id="btn-share" type="button"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg></span>Bagikan</button>
+        <button class="btn primary" id="btn-done" type="button">Selesai</button>
       </div>
       <div class="auto-reset" id="result-timer"></div>
     </div>
@@ -345,11 +422,11 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
     <div class="guest-photo"><img id="g-img" alt="Foto kamu" hidden><div class="loader" id="g-loader"></div></div>
     <p class="g-msg" id="g-msg">Menyiapkan foto…</p>
     <div class="g-actions" id="g-actions" hidden>
-      <button class="btn primary" id="g-share">Simpan ke HP</button>
-      <a class="btn ghost" id="g-dl" target="_blank" rel="noopener">Download (Google Drive)</a>
+      <button class="btn primary" id="g-save" type="button">Simpan ke Galeri</button>
+      <button class="btn ghost" id="g-share" type="button"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg></span>Bagikan</button>
       <a class="link" id="g-open" target="_blank" rel="noopener">Buka di Google Drive</a>
     </div>
-    <p class="g-hint">iPhone: tekan lama foto → “Simpan ke Foto”.</p>
+    <p class="g-hint" id="g-hint"></p>
     <footer>Kode foto <b id="g-code"></b></footer>
   </div>
 </section>
@@ -360,6 +437,17 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
     <h3>PIN Operator</h3>
     <div class="pin-dots" id="pin-dots"></div>
     <div class="keypad" id="keypad"></div>
+  </div>
+</div>
+
+<!-- Pop-up umum (printer tidak tersambung, bagikan, dll) -->
+<div class="modal" id="dialog" hidden>
+  <div class="dialog-box" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <div class="dlg-icon" id="dlg-icon"></div>
+    <h3 id="dlg-title"></h3>
+    <p id="dlg-msg"></p>
+    <div id="dlg-extra"></div>
+    <div class="row-actions" id="dlg-actions"></div>
   </div>
 </div>
 
@@ -432,6 +520,13 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
         <label class="field"><span>Format file<small>PNG = lossless (3–5 MB). JPG 92% ≈ 5× lebih kecil, upload lebih cepat.</small></span><select data-setting="outFormat"><option value="png">PNG</option><option value="jpeg">JPG</option></select></label>
         <label class="field"><span>Layar penuh otomatis</span><label class="switch"><input type="checkbox" data-setting="autoFullscreen"><i></i></label></label>
       </div>
+      <div class="card">
+        <h3>Atribut, galeri &amp; bagikan</h3>
+        <label class="field"><span>Halaman “Tambah atribut”<small>Stiker karakter / ilustrasi / teks di atas bingkai</small></span><select data-setting="decorMode">
+          <option value="optional">Tombol di layar review (disarankan)</option><option value="always">Selalu tampil setelah review</option><option value="off">Nonaktif</option></select></label>
+        <label class="field"><span>Simpan otomatis ke galeri<small>Salinan masuk folder Download → aplikasi Galeri (album Download)</small></span><label class="switch"><input type="checkbox" data-setting="saveToGallery"><i></i></label></label>
+        <label class="field"><span>Tombol “Bagikan”<small>Menu share perangkat: WhatsApp, Quick Share, Bluetooth…</small></span><label class="switch"><input type="checkbox" data-setting="showShare"><i></i></label></label>
+      </div>
     </section>
 
     <section class="pane" data-pane="frames">
@@ -448,16 +543,32 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
         <p class="inline"><input type="file" id="frame-file" accept="image/png,image/jpeg,image/webp"></p>
         <div id="frame-import"></div>
       </div>
+      <div class="card">
+        <h3>Atribut (stiker)</h3>
+        <div class="help">
+          Bawaan: <span id="sticker-packs"></span>. Semua ilustrasi orisinal &amp; warnanya mengikuti <b>warna aksen</b> acara.<br>
+          Pilih “Atribut disarankan” di tiap bingkai → paket itu tampil pertama.<br>
+          <b>Kustom:</b> upload PNG <b>transparan</b> (mis. karikatur pengantin, inisial, ilustrasi Canva). Maks 1024 px (dikecilkan otomatis). Hindari karakter berhak cipta (Disney, dll).
+        </div>
+        <p class="inline"><input type="file" id="sticker-file" accept="image/png,image/webp" multiple></p>
+        <div class="stk-admin" id="sticker-list"></div>
+      </div>
     </section>
 
     <section class="pane" data-pane="cloud">
       <h2>Google Drive &amp; QR</h2>
-      <p class="lead">Foto diunggah ke Drive lewat Google Apps Script (gratis). Tamu scan QR → halaman download. Kalau internet putus, foto disimpan di tablet dan diunggah otomatis nanti — QR tetap berlaku.</p>
+      <p class="lead">Foto diunggah ke Drive lewat Google Apps Script (gratis) dan dicatat di Google Sheet database. Tamu scan QR → halaman download. Kalau internet putus, foto tetap tersimpan di galeri dan diunggah otomatis nanti — QR tetap berlaku.</p>
       <div class="card">
         <label class="field"><span>URL Web App<small>…/exec dari Apps Script</small></span><input type="url" data-setting="apiUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
         <label class="field"><span>Token<small>Harus sama dengan TOKEN di Code.gs</small></span><span class="inline"><input type="text" data-setting="apiToken" style="flex:1"><button class="btn ghost sm" id="token-gen" type="button">Acak</button></span></label>
         <label class="field"><span>URL halaman tamu<small>Kosong = alamat aplikasi ini</small></span><input type="url" data-setting="guestBaseUrl" placeholder="otomatis"></label>
         <p class="inline"><button class="btn primary sm" id="api-test" type="button">Tes koneksi</button><span class="muted" id="api-result"></span></p>
+      </div>
+      <div class="card">
+        <h3>Sambungkan perangkat lain</h3>
+        <p class="muted">QR/link ini mengisi URL &amp; token otomatis di tablet/laptop lain.</p>
+        <p class="inline"><button class="btn ghost sm" id="setup-show" type="button">Tampilkan QR setup</button></p>
+        <div id="setup-box"></div>
       </div>
       <div class="card">
         <h3>Antrean upload</h3>
@@ -476,7 +587,7 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
       <h2>Cetak</h2>
       <p class="lead">Android: pasang “Mopria Print Service” lalu sambungkan printer (mis. Canon SELPHY CP1500) via Wi-Fi. Dialog cetak Android akan muncul — tamu/operator tinggal tekan cetak. Cetak tanpa dialog hanya bisa dari laptop (Chrome <code>--kiosk-printing</code>).</p>
       <div class="card">
-        <label class="field"><span>Aktifkan cetak</span><label class="switch"><input type="checkbox" data-setting="printEnabled"><i></i></label></label>
+        <label class="field"><span>Printer tersambung<small>Browser tidak bisa mendeteksi printer. Nyalakan setelah tes cetak berhasil. Mati → tamu melihat pop-up “Printer tidak tersambung”.</small></span><label class="switch"><input type="checkbox" data-setting="printEnabled"><i></i></label></label>
         <label class="field"><span>Cetak otomatis setelah simpan</span><label class="switch"><input type="checkbox" data-setting="autoPrint"><i></i></label></label>
         <label class="field"><span>Maks cetak per sesi</span><select data-setting="maxPrints" data-num><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="0">Tak terbatas</option></select></label>
         <label class="field"><span>Ukuran kertas</span><select data-setting="paper">
@@ -488,9 +599,9 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
     </section>
 
     <section class="pane" data-pane="gallery">
-      <h2>Galeri tablet</h2>
-      <p class="lead">Semua foto juga tersimpan di tablet sebagai cadangan. Ketuk foto untuk QR, cetak, download, atau upload ulang.</p>
-      <p class="inline"><button class="btn ghost sm" id="dl-all" type="button">Download semua</button><button class="btn ghost sm" id="purge-done" type="button">Hapus salinan yang sudah di Drive</button></p>
+      <h2>Galeri</h2>
+      <p class="lead">Semua foto tersimpan di galeri aplikasi ini sebagai cadangan (dan otomatis di galeri perangkat bila diaktifkan di Sesi). Ketuk foto untuk QR, cetak, simpan ke galeri, atau upload ulang.</p>
+      <p class="inline"><button class="btn ghost sm" id="dl-all" type="button">Simpan semua ke galeri perangkat</button><button class="btn ghost sm" id="purge-done" type="button">Hapus yang sudah di Drive</button></p>
       <div class="gal" id="gal"></div>
     </section>
 
@@ -539,6 +650,7 @@ body.guest .screen{position:static;min-height:100vh;min-height:100dvh;justify-co
 </div>
 <script>setTimeout(function () { if (!window.PB_BOOTED) document.getElementById('boot-error').hidden = false; }, 3000);</script>
 <script src="vendor/qrcode.js"></script>
+<script src="stickers.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

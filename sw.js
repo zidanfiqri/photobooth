@@ -1,8 +1,8 @@
 /* Service worker: aplikasi tetap bisa dibuka walau internet venue putus.
    Naikkan CACHE (mis. pb-v2) setiap kali kamu deploy versi baru. */
-const CACHE = 'pb-v1.0.1';
+const CACHE = 'pb-v1.2.0';
 const SHELL = [
-  './', './index.html', './app.js', './vendor/qrcode.js', './manifest.webmanifest',
+  './', './index.html', './app.js', './stickers.js', './vendor/qrcode.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png',
   './fonts/great-vibes-latin-400-normal.woff2',
   './fonts/cormorant-garamond-latin-400-normal.woff2', './fonts/cormorant-garamond-latin-500-normal.woff2',

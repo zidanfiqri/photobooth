@@ -1,6 +1,6 @@
 # 📸 Photobooth Mandiri — Wedding & Event
 
-Photobooth swalayan berbasis web: tamu pilih bingkai → foto otomatis → hasil PNG → **QR** untuk diambil di HP → tersimpan di **Google Drive** → bisa **dicetak**. Tanpa payment gateway (dibayar di muka).
+Photobooth swalayan berbasis web: tamu pilih bingkai → foto otomatis → **tambah atribut** (stiker) → hasil PNG → **QR** untuk diambil di HP → tersimpan di **Google Drive + database Sheet** dan **galeri perangkat** → bisa **dibagikan** & **dicetak**. Tanpa payment gateway (dibayar di muka).
 
 **Biaya software: Rp 0** — hosting statis di Vercel + backend Google Apps Script + Google Drive.
 
@@ -15,14 +15,18 @@ Photobooth swalayan berbasis web: tamu pilih bingkai → foto otomatis → hasil
 ---
 
 ## Fitur
-- **Kiosk tamu:** sentuh → pilih bingkai → hitung mundur → jepret otomatis (1–8 foto sesuai bingkai) → review / ulang → simpan → QR.
+- **Kiosk tamu:** sentuh → pilih bingkai → hitung mundur → jepret otomatis (1–8 foto sesuai bingkai) → review / ulang → *(opsional)* tambah atribut → simpan → QR.
+- **Halaman “Tambah atribut”:** 30+ stiker orisinal (Elegan, Floral, Lucu/karakter, Teks) yang warnanya mengikuti warna aksen acara. Geser, cubit 2 jari / tarik ↻ untuk ukuran & putar, balik, urungkan. Paket yang **cocok dengan tema bingkai** tampil pertama (atur per bingkai di Admin › Bingkai). Bisa upload **atribut kustom** (PNG transparan, mis. karikatur pengantin).
 - **3 bingkai bawaan** (Klasik 4R, Photo Strip 2×6, Kolase 4 foto) — teks nama, tanggal, warna aksen diatur dari admin.
 - **Bingkai sendiri:** desain di Canva gratis dengan kotak hijau `#00FF00` sebagai area foto, atau PNG transparan. Kotak terdeteksi otomatis.
-- **Google Drive:** 1 folder per acara, file di-share "siapa saja yang punya link".
-- **Tahan internet putus:** foto disimpan di tablet (IndexedDB) → antrean upload dengan retry otomatis. **QR tetap berlaku.**
-- **Halaman tamu:** pratinjau, *Simpan ke HP* (share sheet), download, buka di Drive.
-- **Cetak:** Android via Mopria (mis. Canon SELPHY CP1500), strip dicetak 2× per lembar 4R.
-- **Panel admin ber-PIN:** acara, kamera, sesi, bingkai, Drive & QR, cetak, galeri lokal, sistem + log error.
+- **Google Drive = database utama:** 1 folder per acara + Google Sheet “Photobooth — Database” (1 baris per foto: waktu, kode, acara, bingkai, link). File di-share "siapa saja yang punya link".
+- **Galeri:** setiap foto otomatis tersimpan ke galeri perangkat (folder Download → aplikasi Galeri) + galeri aplikasi (cadangan).
+- **Tahan internet putus:** foto tetap tersimpan di galeri → antrean upload dengan retry otomatis. **QR tetap berlaku.**
+- **Bagikan:** tombol *Bagikan* di layar hasil (share sheet: WhatsApp, Quick Share, Bluetooth…; tanpa share sheet → QR + salin link).
+- **Halaman tamu:** pratinjau, *Simpan ke Galeri*, *Bagikan*, buka di Drive.
+- **Cetak:** tombol *Cetak* selalu tampil; printer belum tersambung → pop-up **“Printer tidak tersambung”**. Android via Mopria (mis. Canon SELPHY CP1500), strip dicetak 2× per lembar 4R.
+- **KODE foto** (mis. `2N1MK-JJBXN`): ID unik tiap foto — nama file di Drive diawali kode ini & tercatat di kolom *Kode* database; bila tamu gagal scan, operator cari kode di Drive/Sheet.
+- **Panel admin ber-PIN:** acara, kamera, sesi, bingkai & atribut, Drive & QR (+ QR setup perangkat lain), cetak, galeri, sistem + log error.
 - **PWA offline:** sekali dibuka, aplikasi tetap bisa jalan walau internet venue mati.
 
 ## Arsitektur
@@ -30,7 +34,9 @@ Photobooth swalayan berbasis web: tamu pilih bingkai → foto otomatis → hasil
 flowchart LR
   K["Tablet / laptop<br/>(web app di Vercel)"] -- "POST foto (base64)" --> A["Google Apps Script<br/>Web App"]
   A --> D[("Google Drive<br/>Photobooth / nama acara")]
-  K -. "internet putus" .-> Q[("Antrean lokal<br/>IndexedDB")]
+  A --> SH[("Google Sheet<br/>database 1 baris/foto")]
+  K -- "unduhan otomatis" --> GL[("Galeri perangkat")]
+  K -. "internet putus" .-> Q[("Antrean di galeri aplikasi<br/>IndexedDB")]
   Q -. "retry otomatis" .-> A
   K -- "QR" --> H["HP tamu"]
   H -- "buka link ?s=ID" --> G["Halaman tamu<br/>(Vercel)"]
@@ -43,6 +49,7 @@ Vercel hanya menyajikan file statis; bagian "dinamis" (simpan ke Drive) dikerjak
 ```
 index.html            UI (kiosk, admin, halaman tamu) + CSS
 app.js                Logika aplikasi (tanpa build step)
+stickers.js           Atribut bawaan (SVG orisinal, warna ikut aksen acara)
 sw.js                 Service worker (cache offline)
 manifest.webmanifest  PWA (install ke home screen, layar penuh)
 icons/ fonts/ vendor/ Aset (font OFL, qrcode-generator MIT)
@@ -70,12 +77,14 @@ DEVICE-SETUP.md       Panduan setting perangkat & checklist hari H
 
 ## 2. Backend Google Drive (Apps Script, ±5 menit)
 1. Buka **script.google.com** → *New project* → hapus isi → tempel `apps-script/Code.gs`.
-2. Ganti `TOKEN` dengan teks acak (bisa pakai tombol **Acak** di Admin › Drive & QR lalu salin). **Jangan commit token asli ke GitHub** — token cukup ada di editor Apps Script dan di tablet.
+2. Ganti `TOKEN` dengan teks acak (bisa pakai tombol **Acak** di Admin › Drive & QR lalu salin). **Jangan commit token asli ke GitHub** — token cukup ada di editor Apps Script dan di perangkat kiosk.
 3. **Deploy → New deployment → ⚙ Web app** — *Execute as:* **Me** · *Who has access:* **Anyone**.
 4. *Authorize access* → pilih akun → **Advanced → Go to … (unsafe) → Allow** (normal untuk script pribadi).
 5. Salin **Web app URL** (`…/exec`) → tempel di tablet: Admin › Drive & QR → **Tes koneksi** harus ✓.
+   Perangkat berikutnya cukup scan **QR setup** (Admin › Drive & QR › *Tampilkan QR setup*) atau buka link `https://<domain>/#setup=…` — URL & token terisi otomatis, hash langsung dihapus dari address bar. Link ini **rahasia** (berisi token).
 
-Foto tersimpan di `My Drive › Photobooth › <nama folder acara>`.
+Foto tersimpan di `My Drive › Photobooth › <nama folder acara>`; database di `My Drive › Photobooth › Photobooth — Database` (zona waktu `CONFIG.TIME_ZONE`, default Asia/Jakarta).
+`BAKED_API_URL` di `app.js` = URL Web App bawaan (bukan rahasia — ikut tercantum di link tamu) agar link QR lebih pendek. Token **tidak** pernah ditulis di repo.
 Ubah kode backend: *Deploy → Manage deployments → ✎ → Version: New version → Deploy* — URL tetap.
 
 Opsi di `CONFIG` (Code.gs): `PUBLIC_EVENT_FOLDER: true` → folder acara bisa dibuka siapa saja yang punya link (QR galeri di layar awal) · `ROOT_FOLDER_ID` → simpan ke folder tertentu.
@@ -84,8 +93,9 @@ Opsi di `CONFIG` (Code.gs): `PUBLIC_EVENT_FOLDER: true` → folder acara bisa di
 Ringkas (detail di [DEVICE-SETUP.md](DEVICE-SETUP.md)):
 1. Buka URL produksi di **Chrome** → izinkan **Kamera**.
 2. **Admin:** ketuk **pojok kiri atas 5×** → PIN `1234` (laptop: `Ctrl+Shift+A`). Ganti PIN di *Sistem*.
-3. Isi *Drive & QR*, *Acara*, pilih *Bingkai*.
-4. Chrome ⋮ → **Install app / Add to Home screen** → buka dari ikon.
+3. Isi *Drive & QR* (atau buka link/QR setup), *Acara*, pilih *Bingkai* & atribut disarankan.
+4. *Sesi*: halaman atribut (tombol / selalu / nonaktif), simpan otomatis ke galeri, tombol Bagikan. *Cetak*: nyalakan **Printer tersambung** hanya setelah tes cetak berhasil.
+5. Chrome ⋮ → **Install app / Add to Home screen** → buka dari ikon.
 
 ## 4. Rilis versi baru
 1. Ubah kode → naikkan `VERSION` di `app.js` **dan** `CACHE` di `sw.js`.
@@ -94,9 +104,9 @@ Ringkas (detail di [DEVICE-SETUP.md](DEVICE-SETUP.md)):
 
 ## 5. Tes lokal
 ```bash
-node tests/gas-test.js                      # logika Code.gs, tanpa dependensi (17 cek)
+node tests/gas-test.js                      # logika Code.gs, tanpa dependensi (21 cek)
 cd tests && npm install && npx playwright install chromium
-npm run test:e2e                            # alur lengkap di Chrome headless + kamera palsu (25 cek)
+npm run test:e2e                            # alur lengkap di Chrome headless + kamera palsu (50 cek)
 ```
 Opsional: `FAKE_VIDEO=/path/video.y4m` untuk gambar kamera yang lebih realistis; `CHROME_PATH=...` untuk Chrome sistem. Mock backend saja: `node tests/mock-api.js` (token `TEST-TOKEN`).
 
@@ -110,11 +120,14 @@ Opsional: `FAKE_VIDEO=/path/video.y4m` untuk gambar kamera yang lebih realistis;
 | Tamu buka link: foto belum ada | Masih antre upload — halaman tamu memuat otomatis. Cek titik status & Admin › Drive & QR. |
 | Link tamu minta login Vercel | Kiosk dibuka di URL preview — pakai URL produksi. |
 | Perlu diagnosa di tablet | Admin › Sistem › **Log error**. |
+| Foto tidak muncul di Galeri | Cek album **Download** di aplikasi Galeri. Chrome bisa menanyakan “unduh banyak file” → **Izinkan** (Chrome › ikon gembok › Izin situs › Download otomatis). |
+| Tamu tekan Cetak → “Printer tidak tersambung” | Normal bila Admin › Cetak › *Printer tersambung* mati. Browser tidak bisa mendeteksi printer — nyalakan setelah tes cetak berhasil. |
 
 ## Batasan
 - Apps Script akun Gmail: maks 6 menit per eksekusi, 30 eksekusi bersamaan per user — cukup untuk 1 booth.
 - Google Drive gratis 15 GB (dibagi dengan Gmail/Photos). JPG 92% jauh lebih kecil dari PNG (Admin › Sesi › Format).
-- Kirim otomatis ke WhatsApp belum ada (butuh WhatsApp Business API, berbayar setelah kuota gratis). Tamu mengambil foto lewat QR.
+- Kirim otomatis ke WhatsApp belum ada (butuh WhatsApp Business API, berbayar setelah kuota gratis). Tamu mengambil foto lewat QR, atau tombol *Bagikan* membuka share sheet perangkat.
+- Status printer tidak bisa dibaca browser → sakelar *Printer tersambung* diatur operator.
 
 ## Lisensi pihak ketiga
 qrcode-generator © Kazuhiko Arase (MIT) · Font Great Vibes, Cormorant Garamond, Jost (SIL Open Font License — `fonts/LICENSE-*`).

@@ -25,9 +25,10 @@ const CONFIG = {
   SHEET_ID: '',                     // opsional: ID Google Sheet database (kosong = dibuat otomatis di folder induk)
   PUBLIC_EVENT_FOLDER: false,       // true = folder acara bisa dibuka siapa saja yang punya link (QR galeri)
   MAX_BYTES: 25 * 1024 * 1024,      // batas ukuran 1 foto
+  TIME_ZONE: 'Asia/Jakarta',        // zona waktu kolom "Waktu" di database
 };
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const DB_HEADER = ['Waktu', 'Kode', 'Acara', 'Folder', 'Bingkai', 'Nama file', 'Link Drive', 'Ukuran (KB)'];
 const ID_RE = /^[0-9A-Z]{8,16}$/;
 const CACHE_TTL = 21600; // 6 jam (maksimum CacheService)
@@ -197,6 +198,7 @@ function dbSheet_() {
   if (id) { try { ss = SpreadsheetApp.openById(id); } catch (err) { ss = null; } }
   if (!ss) {
     ss = SpreadsheetApp.create('Photobooth — Database');
+    try { ss.setSpreadsheetTimeZone(CONFIG.TIME_ZONE); } catch (err) { /* abaikan */ }
     DriveApp.getFileById(ss.getId()).moveTo(rootFolder_());
     props.setProperty('sheetId', ss.getId());
   }
